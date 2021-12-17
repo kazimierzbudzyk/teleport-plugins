@@ -20,6 +20,7 @@ require (
 	github.com/gravitational/protoc-gen-terraform v0.0.0-20211108170245-3b37ff28d21e // protoc-gen-terraform master (#13)
 	github.com/gravitational/teleport/api v0.0.0-20220216032207-d7ae31ced755 // tag v8.3.0
 	github.com/gravitational/trace v1.1.16-0.20210609220119-4855e69c89fc
+	github.com/hashicorp/go-uuid v1.0.1
 	github.com/hashicorp/go-version v1.3.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.8.0
 	github.com/jonboulle/clockwork v0.2.2
