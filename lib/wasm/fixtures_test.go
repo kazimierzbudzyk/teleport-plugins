@@ -26,7 +26,7 @@ import (
 )
 
 func TestFixtureBuilderContext(t *testing.T) {
-	c, err := newFixutreBuilderContext()
+	c, err := NewTemplateBuilder()
 	require.NoError(t, err)
 
 	f, err := c.Get("events.user_create.json")
@@ -49,7 +49,7 @@ func TestFixtureBuilderContext(t *testing.T) {
 }
 
 func TestFixtureIndex(t *testing.T) {
-	c, err := newFixutreBuilderContext()
+	c, err := NewTemplateBuilder()
 	require.NoError(t, err)
 
 	f, err := c.Get("events.user_create.json")
@@ -77,6 +77,7 @@ func TestFixtureIndex(t *testing.T) {
 	require.Nil(t, i.Get(12))
 	require.Nil(t, i.Get(6))
 
-	require.NoError(t, i.Add("events.user_create", "user_create"))
+	_, err = i.Add("events.user_create", "user_create")
+	require.NoError(t, err)
 	require.NotNil(t, i.Get(6))
 }

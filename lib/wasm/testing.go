@@ -44,6 +44,7 @@ func (a *MockAPIClient) UpsertLock(ctx context.Context, lock types.Lock) error {
 	return nil
 }
 
+// GetLatestRequest returns lates API request proto message
 func (a *MockAPIClient) GetLatestRequest(ctx context.Context) proto.Message {
 	if len(a.messages) == 0 {
 		return nil
@@ -59,6 +60,7 @@ type Testing struct {
 	traits        []*TestingTrait
 }
 
+// TestingTrait represents WASM testing trait
 type TestingTrait struct {
 	ec     *ExecutionContext
 	run    wasmer.NativeFunction
@@ -166,7 +168,7 @@ func (r *TestingTrait) getFixtureBody(args []wasmer.Value) ([]wasmer.Value, erro
 
 // getLatestAPIRequestSize returns size of a latest API request
 func (r *TestingTrait) getLatestAPIRequestSize(args []wasmer.Value) ([]wasmer.Value, error) {
-	request := r.runner.MockAPIClient.GetLatestRequest(context.Background())
+	request := r.runner.MockAPIClient.GetLatestRequest(r.ec.currentContext)
 	if request == nil {
 		return []wasmer.Value{wasmer.NewI32(0)}, trace.Errorf("There were no API requests")
 	}
@@ -181,7 +183,7 @@ func (r *TestingTrait) getLatestAPIRequestBody(args []wasmer.Value) ([]wasmer.Va
 	addr := int(args[0].I32())
 	memory := r.ec.Memory
 
-	request := r.runner.MockAPIClient.GetLatestRequest(context.Background())
+	request := r.runner.MockAPIClient.GetLatestRequest(r.ec.currentContext)
 	if request == nil {
 		return []wasmer.Value{wasmer.NewI32(0)}, trace.Errorf("There were no API requests")
 	}
@@ -198,8 +200,8 @@ func (r *TestingTrait) getLatestAPIRequestBody(args []wasmer.Value) ([]wasmer.Va
 }
 
 // Run runs test suite
-func (r *TestingTrait) Run(ctx context.Context) error {
-	_, err := r.ec.Execute(ctx, r.run)
+func (r *TestingTrait) Run() error {
+	_, err := r.ec.Execute(r.run)
 	if err != nil {
 		return trace.Wrap(err)
 	}

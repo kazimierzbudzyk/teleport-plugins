@@ -1,5 +1,6 @@
 {
     "type": "types.OneOf",
+    "description": "Create access request event",
     "data": {
         "AccessRequestCreate": {
             "Metadata": {

@@ -1,5 +1,6 @@
 {
     "type": "types.OneOf",
+    "description": "Create user event",
     "data": {
         "UserCreate": {
             "Metadata": {

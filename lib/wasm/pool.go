@@ -23,25 +23,30 @@ import (
 	wasmer "github.com/wasmerio/wasmer-go/wasmer"
 )
 
-// Trait represents the accessors to host/wasm methods
+// Trait represents the specific instance of wasmer methods bound to the specific execution context
 type Trait interface {
 	Export(*wasmer.Store, *wasmer.ImportObject) error
 	Bind(im *ExecutionContext) error
 }
 
-// TraitFactory represents the collection of traits
+// TraitFactory represents the trait factory
 type TraitFactory interface {
 	CreateTrait() Trait
 }
 
 // ExecutionContext represents object required to execute methods on a specific wasmer instance
 type ExecutionContext struct {
+	// Instance represents wasmer.Instance
 	Instance *wasmer.Instance
-	Memory   *wasmer.Memory
-	timeout  time.Duration
+	// Memory represents wasmer.Memory
+	Memory *wasmer.Memory
+	// timeout represents method execution timeout
+	timeout time.Duration
+	// currentContext represents current context for execution chain
+	currentContext context.Context
 }
 
-// ExecutionContextPool represents wasmer instance pool
+// ExecutionContextPool represents object pool of wasmer instances
 type ExecutionContextPool struct {
 	timeout   time.Duration
 	instances chan *ExecutionContext
@@ -49,8 +54,11 @@ type ExecutionContextPool struct {
 
 // ExecutionContextPoolOptions represents instance pool constructor options
 type ExecutionContextPoolOptions struct {
-	Bytes       []byte
-	Timeout     time.Duration
+	// Bytes represents wasm binary bytes
+	Bytes []byte
+	// Timeout represents method execution timeout
+	Timeout time.Duration
+	// Concurrency represents object pool size
 	Concurrency int
 }
 
@@ -87,7 +95,11 @@ func NewExecutionContextPool(options ExecutionContextPoolOptions, tf ...TraitFac
 			return nil, trace.Wrap(err)
 		}
 
-		im := &ExecutionContext{instance, memory, options.Timeout}
+		im := &ExecutionContext{
+			Instance: instance,
+			Memory:   memory,
+			timeout:  options.Timeout,
+		}
 		for _, t := range traits {
 			err = t.Bind(im)
 			if err != nil {
@@ -104,20 +116,21 @@ func NewExecutionContextPool(options ExecutionContextPoolOptions, tf ...TraitFac
 	}, nil
 }
 
-// Get fetches next instance from the pool, if any
+// Get fetches next instance from the pool, if any and sets currentContext
 func (i *ExecutionContextPool) Get(ctx context.Context) (*ExecutionContext, error) {
 	select {
-	case im := <-i.instances:
-		return im, nil
+	case ec := <-i.instances:
+		ec.currentContext = ctx
+		return ec, nil
 	case <-ctx.Done():
 		return nil, trace.Wrap(ctx.Err())
 	}
 }
 
 // Put returns instance to the pool
-func (i *ExecutionContextPool) Put(ctx context.Context, im *ExecutionContext) error {
+func (i *ExecutionContextPool) Put(ctx context.Context, ec *ExecutionContext) error {
 	select {
-	case i.instances <- im:
+	case i.instances <- ec:
 		return nil
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
@@ -142,8 +155,8 @@ func (i *ExecutionContext) GetFunction(name string) (wasmer.NativeFunction, erro
 	return fn, nil
 }
 
-// Execute executes method with timeout
-func (i *ExecutionContext) Execute(ctx context.Context, fn wasmer.NativeFunction, args ...interface{}) (interface{}, error) {
+// Execute executes wasm method with timeout.
+func (i *ExecutionContext) Execute(fn wasmer.NativeFunction, args ...interface{}) (interface{}, error) {
 	var ch chan interface{} = make(chan interface{})
 	var e chan error = make(chan error)
 
@@ -163,7 +176,7 @@ func (i *ExecutionContext) Execute(ctx context.Context, fn wasmer.NativeFunction
 		return r, nil
 	case <-time.After(i.timeout):
 		return nil, trace.LimitExceeded("WASM method execution timeout")
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
+	case <-i.currentContext.Done():
+		return nil, trace.Wrap(i.currentContext.Err())
 	}
 }

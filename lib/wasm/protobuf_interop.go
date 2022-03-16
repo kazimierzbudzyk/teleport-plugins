@@ -16,8 +16,6 @@ limitations under the License.
 package wasm
 
 import (
-	"context"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	wasmer "github.com/wasmerio/wasmer-go/wasmer"
@@ -29,6 +27,7 @@ const (
 	getLengthFnName = "__protobuf_getLength"
 )
 
+// ProtobufInterop represents collection of traits
 type ProtobufInterop struct {
 	traits []*ProtobufInteropTrait
 }
@@ -90,14 +89,14 @@ func (i *ProtobufInteropTrait) Export(store *wasmer.Store, importObject *wasmer.
 }
 
 // SendMessage allocates memory and copies proto.Message to the AS side, returns memory address
-func (i *ProtobufInteropTrait) SendMessage(ctx context.Context, message proto.Message) (int32, error) {
+func (i *ProtobufInteropTrait) SendMessage(message proto.Message) (int32, error) {
 	size := proto.Size(message)
 	bytes, err := proto.Marshal(message)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	rawAddrSize, err := i.ec.Execute(ctx, i.alloc, size)
+	rawAddrSize, err := i.ec.Execute(i.alloc, size)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -115,13 +114,13 @@ func (i *ProtobufInteropTrait) SendMessage(ctx context.Context, message proto.Me
 }
 
 // ReceiveMessage decodes message from WASM side. Type of the message must be known onset.
-func (i *ProtobufInteropTrait) ReceiveMessage(ctx context.Context, handle interface{}, m proto.Message) error {
-	rawLength, err := i.ec.Execute(ctx, i.getLength, handle)
+func (i *ProtobufInteropTrait) ReceiveMessage(handle interface{}, m proto.Message) error {
+	rawLength, err := i.ec.Execute(i.getLength, handle)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	rawAddr, err := i.ec.Execute(ctx, i.getAddr, handle)
+	rawAddr, err := i.ec.Execute(i.getAddr, handle)
 	if err != nil {
 		return trace.Wrap(err)
 	}

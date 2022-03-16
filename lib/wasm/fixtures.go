@@ -42,12 +42,20 @@ var (
 	fixtureRegexp = regexp.MustCompile(`(\d+)-`)
 )
 
-type fixtureBuilderContext struct {
+// templateBuilder represents fixture JSON template renderer
+type templateBuilder struct {
 	template *template.Template
 }
 
+// fixture respresents fixture template
 type fixture struct {
-	Type string          `json:"type"`
+	// Name represents fixture template name
+	Name string
+	// Type represents fixture proto type
+	Type string `json:"type"`
+	// Description represents fixture template description
+	Description string `json:"description"`
+	// Data represents fixture data in json format
 	Data json.RawMessage `json:"data"`
 }
 
@@ -57,8 +65,9 @@ type FixtureIndex struct {
 	dir      string
 }
 
-func newFixutreBuilderContext() (*fixtureBuilderContext, error) {
-	c := &fixtureBuilderContext{}
+// NewTemplateBuilder creates template builder instance
+func NewTemplateBuilder() (*templateBuilder, error) {
+	c := &templateBuilder{}
 
 	t, err := template.New("").Funcs(template.FuncMap{
 		"uuid": c.uuid,
@@ -74,7 +83,8 @@ func newFixutreBuilderContext() (*fixtureBuilderContext, error) {
 	return c, nil
 }
 
-func (c *fixtureBuilderContext) uuid() string {
+// uuid represents template function which generates UUID
+func (c *templateBuilder) uuid() string {
 	u, err := uuid.GenerateUUID()
 	if err != nil {
 		return "error generating uuid" // In case of failure, user would fill this in by himself
@@ -82,18 +92,22 @@ func (c *fixtureBuilderContext) uuid() string {
 	return u
 }
 
-func (c *fixtureBuilderContext) time() string {
+// time represents template function which returns current time
+func (c *templateBuilder) time() string {
 	return time.Now().Format(time.RFC3339)
 }
 
-func (c *fixtureBuilderContext) Get(name string) (*fixture, error) {
+// Get returns fixture by template name
+func (c *templateBuilder) Get(name string) (*fixture, error) {
 	b := &strings.Builder{}
 	err := c.template.ExecuteTemplate(b, name, struct{}{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	f := &fixture{}
+	f := &fixture{
+		Name: strings.TrimSuffix(name, filepath.Ext(name)),
+	}
 	err = json.Unmarshal([]byte(b.String()), f)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -102,9 +116,25 @@ func (c *fixtureBuilderContext) Get(name string) (*fixture, error) {
 	return f, nil
 }
 
+// All returns all fixture templates
+func (c *templateBuilder) All() ([]*fixture, error) {
+	t := c.template.Templates()
+	var r = make([]*fixture, len(t))
+
+	for i, tpl := range t {
+		f, err := c.Get(tpl.Name())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		r[i] = f
+	}
+
+	return r, nil
+}
+
 // GetProtoMessage returns proto message of a fixture
 func (f *fixture) GetProtoMessage() (proto.Message, error) {
-	// FIXME: Resolve by type
+	// FIXME: Resolve from type
 	m := &events.OneOf{}
 
 	err := jsonpb.UnmarshalString(string(f.Data), m)
@@ -124,7 +154,7 @@ func (f *fixture) ToJSON() ([]byte, error) {
 func NewFixtureIndex(dir string) (*FixtureIndex, error) {
 	_, err := os.Stat(dir)
 	if err != nil {
-		return nil, trace.BadParameter("Fixture directory does not exists %v", dir)
+		return nil, trace.BadParameter("Error reading fixture directory %v", dir)
 	}
 	if os.IsNotExist(err) {
 		return nil, trace.BadParameter("Fixture directory does not exists %v", dir)
@@ -189,25 +219,25 @@ func (i *FixtureIndex) Get(idx int) proto.Message {
 }
 
 // Add adds the new fixture generated from template
-func (i *FixtureIndex) Add(template string, name string) error {
-	builder, err := newFixutreBuilderContext()
+func (i *FixtureIndex) Add(template string, name string) (string, error) {
+	builder, err := NewTemplateBuilder()
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	fixture, err := builder.Get(template + ".json")
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	msg, err := fixture.GetProtoMessage()
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	bytes, err := fixture.ToJSON()
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	id := i.getMaxID() + 1
@@ -215,12 +245,12 @@ func (i *FixtureIndex) Add(template string, name string) error {
 
 	err = ioutil.WriteFile(fileName, bytes, 0777)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	i.fixtures[id] = msg
 
-	return nil
+	return fileName, nil
 }
 
 // getMaxID returns max ID in fixture index

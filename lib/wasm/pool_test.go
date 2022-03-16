@@ -103,24 +103,24 @@ func (e *testTrait) Bind(im *ExecutionContext) error {
 	return nil
 }
 
-func (e *testTrait) OK(ctx context.Context) (interface{}, error) {
-	return e.im.Execute(ctx, e.ok)
+func (e *testTrait) OK() (interface{}, error) {
+	return e.im.Execute(e.ok)
 }
 
-func (e *testTrait) Fail(ctx context.Context) (interface{}, error) {
-	return e.im.Execute(ctx, e.fail)
+func (e *testTrait) Fail() (interface{}, error) {
+	return e.im.Execute(e.fail)
 }
 
-func (e *testTrait) Infinite(ctx context.Context) (interface{}, error) {
-	return e.im.Execute(ctx, e.infinite)
+func (e *testTrait) Infinite() (interface{}, error) {
+	return e.im.Execute(e.infinite)
 }
 
-func (e *testTrait) Delay100ms(ctx context.Context) (interface{}, error) {
-	return e.im.Execute(ctx, e.delay100ms)
+func (e *testTrait) Delay100ms() (interface{}, error) {
+	return e.im.Execute(e.delay100ms)
 }
 
-func (e *testTrait) ValidatePBMessage(ctx context.Context, dataView interface{}) (interface{}, error) {
-	return e.im.Execute(ctx, e.validatePBMessage, dataView)
+func (e *testTrait) ValidatePBMessage(dataView interface{}) (interface{}, error) {
+	return e.im.Execute(e.validatePBMessage, dataView)
 }
 
 func TestPool(t *testing.T) {
@@ -177,15 +177,15 @@ func TestRegularMethods(t *testing.T) {
 	fi := f.For(i)
 	require.NotNil(t, fi)
 
-	r, err := fi.OK(ctx)
+	r, err := fi.OK()
 	require.NoError(t, err)
 	require.Equal(t, r, int32(1))
 
-	_, err = fi.Fail(ctx)
+	_, err = fi.Fail()
 	require.Error(t, err, "unreachable")
 	require.Contains(t, hook.LastEntry().Message, "Failure")
 
-	_, err = fi.Infinite(ctx)
+	_, err = fi.Infinite()
 	require.Error(t, err, "execution timeout")
 }
 
@@ -220,7 +220,7 @@ func TestParallelExecution(t *testing.T) {
 			s := f.For(n)
 			require.NotNil(t, s)
 
-			s.Delay100ms(ctx)
+			s.Delay100ms()
 
 			err = p.Put(ctx, n)
 			require.NoError(t, err)
@@ -266,14 +266,14 @@ func TestParallelProtobufInteropExecution(t *testing.T) {
 				},
 			})
 
-			dataView, err := pb.For(in).SendMessage(ctx, oneof)
+			dataView, err := pb.For(in).SendMessage(oneof)
 			require.NoError(t, err)
 
 			if len(hook.AllEntries()) > 0 {
 				fmt.Println(hook.LastEntry())
 			}
 
-			result, err := f.For(in).ValidatePBMessage(ctx, dataView)
+			result, err := f.For(in).ValidatePBMessage(dataView)
 			require.NoError(t, err)
 			require.Equal(t, result, int64(i))
 

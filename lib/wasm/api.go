@@ -78,7 +78,12 @@ func (e *TeleportAPITrait) upsertLock(args []wasmer.Value) ([]wasmer.Value, erro
 
 	handle := args[0].I32()
 
-	err := e.api.pb.For(e.ec).ReceiveMessage(context.Background(), handle, lock)
+	ec := e.api.pb.For(e.ec)
+	if ec == nil {
+		return nil, trace.Errorf("API trait not found for execution context %v", ec)
+	}
+
+	err := ec.ReceiveMessage(handle, lock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,7 +93,7 @@ func (e *TeleportAPITrait) upsertLock(args []wasmer.Value) ([]wasmer.Value, erro
 		return nil, trace.Wrap(err)
 	}
 
-	err = e.api.client.UpsertLock(context.Background(), lock)
+	err = e.api.client.UpsertLock(e.ec.currentContext, lock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
