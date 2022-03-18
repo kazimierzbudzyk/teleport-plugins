@@ -78,7 +78,7 @@ func (e *HandleEvent) For(ec *wasm.ExecutionContext) *HandleEventTrait {
 // HandleEvent runs handleEvent method within the given execution context
 func (e *HandleEvent) HandleEvent(ctx context.Context, ec *wasm.ExecutionContext, evt events.AuditEvent) (events.AuditEvent, error) {
 	// Send teleport event to WASM side
-	handle, err := e.pb.For(ec).SendMessage(ctx, events.MustToOneOf(evt))
+	handle, err := e.pb.For(ec).SendMessage(events.MustToOneOf(evt))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -102,7 +102,7 @@ func (e *HandleEvent) HandleEvent(ctx context.Context, ec *wasm.ExecutionContext
 	// Decode the resulting event
 	oneOf := &events.OneOf{}
 
-	err = e.pb.For(ec).ReceiveMessage(ctx, resultHandle, oneOf)
+	err = e.pb.For(ec).ReceiveMessage(resultHandle, oneOf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,5 +164,5 @@ func (e *HandleEventTrait) Bind(ec *wasm.ExecutionContext) error {
 
 // HandleEvent performs handle event call
 func (e *HandleEventTrait) HandleEvent(ctx context.Context, handle interface{}) (interface{}, error) {
-	return e.ec.Execute(ctx, e.handleEvent, handle)
+	return e.ec.Execute(e.handleEvent, handle)
 }
