@@ -42,3 +42,7 @@ test: build
 .PHONY: asbuild
 asbuild: clean
 	yarn asbuild
+
+.PHONY: asbuild-dev
+asbuild-dev: 
+	yarn asbuild:dev

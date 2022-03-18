@@ -3,6 +3,7 @@ module github.com/gravitational/teleport-plugins
 go 1.16
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/alecthomas/assert v0.0.0-20170929043011-405dbfeb8e38 // indirect
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/kong v0.2.17
