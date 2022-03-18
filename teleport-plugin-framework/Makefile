@@ -27,7 +27,7 @@ get-custom-wasmer-runtime:
 # Use CUSTOM_WASMER_RUNTIME=true if you have Mac M1 and wasmer-go is built in local directory
 .PHONY: build
 build: clean
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) CGO_CFLAGS=$(CGO_CFLAGS) CGO_LDFLAGS=$(CGO_LDFLAGS) go build -o $(BUILDDIR)/plugin-framework $(BUILDFLAGS) $(TAGS)
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) CGO_CFLAGS=$(CGO_CFLAGS) CGO_LDFLAGS=$(CGO_LDFLAGS) go build -o $(BUILDDIR)/teleport-plugin-framework $(BUILDFLAGS) $(TAGS)
 
 .PHONY: clean
 clean:
@@ -37,7 +37,7 @@ clean:
 .PHONY: test
 test: build
 	yarn asbuild:test
-	./build/plugin-framework test
+	./build/teleport-plugin-framework test
 
 .PHONY: asbuild
 asbuild: clean
