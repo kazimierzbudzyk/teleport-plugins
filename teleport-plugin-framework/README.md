@@ -405,7 +405,7 @@ export function test(): void {
 
 Run: `yarn test`.
 
-# Counting the events and calling Teleport API
+# Counting events and calling Teleport API
 
 Let's say we want to lock user if he fails to login 3 times within latest 5 minutes.
 
@@ -493,10 +493,11 @@ export function test(): void {
     trace("teleport-plugin-framework tests")
 
     const loginFoo = getFixture(4)
-    handleEvent(loginFoo)
-    handleEvent(loginFoo)
-    handleEvent(loginFoo)
-    const result = handleEvent(loginFoo)
+    handleEvent(loginFoo) // Failed attempt #1
+    handleEvent(loginFoo) // Failed attempt #2
+    handleEvent(loginFoo) // Failed attempt #3
+    
+    const result = handleEvent(loginFoo) // Failed attempt #4, user should be locked at this point
     assert(result != null, "Event has not been processed")
 
     const request = getLatestAPIRequest()
@@ -512,3 +513,10 @@ export function test(): void {
 And run `yarn test`.
 
 Please note `getLatestAPIRequest()` method call. Tests call mock API. Mock API methods are always successful. Latest API request is saved in memory and returned by this method. In our example, this method will return binary representation of `types.LockV2` object constructed in `index.ts`.
+
+# Connecting the plugin to `event-handler`
+
+## Installation
+
+Build `event-handler` plugin from source:
+
