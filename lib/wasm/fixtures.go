@@ -50,7 +50,7 @@ type templateBuilder struct {
 // fixture respresents fixture template
 type fixture struct {
 	// Name represents fixture template name
-	Name string
+	Name string `json:"name"`
 	// Type represents fixture proto type
 	Type string `json:"type"`
 	// Description represents fixture template description

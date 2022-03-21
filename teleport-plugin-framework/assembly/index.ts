@@ -1,24 +1,30 @@
+// protobuf classes for host message exchange
 import { events, google, types } from '../vendor/teleport';
+// memory data store for event count calculations
 import * as store from '../vendor/store';
+// API methods
 import { upsertLock } from '../vendor/api';
 
+// These methods are used by the host for sending message to the plugin side
 export {
     __protobuf_alloc,
     __protobuf_getAddr,
     __protobuf_getLength,
 } from '../vendor/teleport';
 
+// Type alias for an event
 type Event = events.OneOf;
 
 const maxFailedLoginAttempts = 3;     // 3 tries
 const failedAttemptsTimeout = 60 * 5; // within 5 minutes
 
+// main function
 export function handleEvent(eventData: DataView): DataView | null {
     let event:Event | null = events.OneOf.decode(eventData);
     if (event == null) {
         throw new Error("Failed to decode Event from protobuf!")
     }
-
+    
     event = hideEvent(event);
     if (event == null) {
         return null;
