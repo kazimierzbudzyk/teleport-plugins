@@ -82,14 +82,12 @@ func (e *AsssemblyScriptEnvTrait) Export(store *wasmer.Store, importObject *wasm
 				wasmer.F64,
 			),
 		), e.seed),
-	})
-
-	importObject.Register("Date", map[string]wasmer.IntoExtern{
-		"now": wasmer.NewFunction(store, wasmer.NewFunctionType(
+		"Date.now": wasmer.NewFunction(store, wasmer.NewFunctionType(
 			wasmer.NewValueTypes(),
 			wasmer.NewValueTypes(wasmer.F64),
 		), e.dateNow),
 	})
+
 	return nil
 }
 

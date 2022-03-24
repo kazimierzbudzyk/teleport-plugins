@@ -112,7 +112,7 @@ type LockConfig struct {
 
 type WASMConfig struct {
 	// WASMTimeout represents WASM method timeout
-	WASMTimeout time.Duration `help:"WASM method timeout" default:"1s" env:"WASM_TIMEOUT"`
+	WASMTimeout time.Duration `help:"WASM method timeout" default:"2s" env:"WASM_TIMEOUT"`
 	// WASMConcurrency represents WASM method execution concurrency
 	WASMConcurrency int `help:"WASM method execution concurrency" default:"5" env:"WASM_CONCURRENCY"`
 	// WASMHandleEventFn is the handle event method name

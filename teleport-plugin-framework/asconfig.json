@@ -1,40 +1,40 @@
 {
-    "targets": {
-      "development": {
-        "binaryFile": "build/development.wasm",
-        "textFile": "build/development.wat",
-        "tsdFile": "build/development.d.ts",
-        "sourceMap": true,
-        "exportRuntime": true,
-        "debug": true,
-        "memoryBase": "0x100000"
-      },
-      "production": {
-        "binaryFile": "build/production.wasm",
-        "textFile": "build/production.wat",
-        "sourceMap": true,
-        "optimizeLevel": 3,
-        "shrinkLevel": 0,
-        "converge": false,
-        "noAssert": true,
-        "exportRuntime": true,
-        "memoryBase": "0x100000"
-      },
-      "test": {
-        "binaryFile": "build/test.wasm",
-        "textFile": "build/test.wat",
-        "tsdFile": "build/test.d.ts",
-        "sourceMap": true,
-        "exportRuntime": true,
-        "debug": true,
-        "memoryBase": "0x100000"
-      },
-      "dev": {
-        "binaryFile": "../lib/wasm/test.wasm",
-        "exportRuntime": true,
-        "debug": true,
-        "memoryBase": "0x100000"
-      }
+  "targets": {
+    "development": {
+      "outFile": "build/development.wasm",
+      "textFile": "build/development.wat",
+      "bindings": "build/development.d.ts",
+      "sourceMap": true,
+      "exportRuntime": true,
+      "debug": true,
+      "memoryBase": "0x100000"
     },
-    "options": {}
-  }
+    "production": {
+      "outFile": "build/production.wasm",
+      "textFile": "build/production.wat",
+      "sourceMap": true,
+      "optimizeLevel": 3,
+      "shrinkLevel": 0,
+      "converge": false,
+      "noAssert": true,
+      "exportRuntime": true,
+      "memoryBase": "0x100000"
+    },
+    "test": {
+      "outFile": "build/test.wasm",
+      "textFile": "build/test.wat",
+      "bindings": "build/test.d.ts",
+      "sourceMap": true,
+      "exportRuntime": true,
+      "debug": true,
+      "memoryBase": "0x100000"
+    },
+    "dev": {
+      "outFile": "../lib/wasm/test.wasm",
+      "exportRuntime": true,
+      "debug": true,
+      "memoryBase": "0x100000"
+    }
+  },
+  "options": {}
+}

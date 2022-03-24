@@ -516,7 +516,49 @@ Please note `getLatestAPIRequest()` method call. Tests call mock API. Mock API m
 
 # Connecting the plugin to `event-handler`
 
+## Prepare the plugin
+
+
+
 ## Installation
 
-Build `event-handler` plugin from source:
+Build `event-handler` plugin from source.
 
+### Conventional architecture
+
+```sh
+git clone git@github.com/gravitational/teleport-plugins.git --branch feature/wasm
+cd event-handler
+make build
+```
+
+### Mac M1
+
+Install [Rust](https://www.rust-lang.org/tools/install).
+
+```sh
+git clone git@github.com/gravitational/teleport-plugins.git --branch feature/wasm
+cd event-handler
+make get-custom-wasmer-runtime
+CUSTOM_WASMER_RUNTIME=true make build
+```
+
+## Configuration
+
+Please, follow the [official documentation](https://goteleport.com/docs/setup/guides/fluentd/#step-26-generate-configuration).
+
+After you finished setting everything up, please run:
+
+```sh
+cd ~/teleport-plugin
+yarn asbuild
+```
+
+After that, add the following lines to `teleport-event-handler.toml`:
+
+```toml
+[wasm]
+plugin = "~/teleport-plugin/build/production.wasm"
+```
+
+Start `event-handler`. Events would be processed via the plugin.

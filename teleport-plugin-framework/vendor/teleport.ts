@@ -480,7 +480,7 @@ namespace __proto {
 /**
  * Allocates the memory segment for a protobuf binary message.
  * @param length Segment length
- * @returns [Segment addr, segment length]
+ * @returns [data view addr, buffer addr]
  */
 export function __protobuf_alloc(length: i32): u64 {
     const view = new DataView(new ArrayBuffer(length));

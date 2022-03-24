@@ -1,16 +1,16 @@
 {
     "targets": {
       "development": {
-        "binaryFile": "build/development.wasm",
+        "outFile": "build/development.wasm",
         "textFile": "build/development.wat",
-        "tsdFile": "build/development.d.ts",
+        "bindings": "build/development.d.ts",
         "sourceMap": true,
         "exportRuntime": true,
         "debug": true,
         "memoryBase": "0x100000"
       },
       "production": {
-        "binaryFile": "build/production.wasm",
+        "outFile": "build/production.wasm",
         "textFile": "build/production.wat",
         "sourceMap": true,
         "optimizeLevel": 3,
@@ -21,9 +21,9 @@
         "memoryBase": "0x100000"
       },
       "test": {
-        "binaryFile": "build/test.wasm",
+        "outFile": "build/test.wasm",
         "textFile": "build/test.wat",
-        "tsdFile": "build/test.d.ts",
+        "bindings": "build/test.d.ts",
         "sourceMap": true,
         "exportRuntime": true,
         "debug": true,
