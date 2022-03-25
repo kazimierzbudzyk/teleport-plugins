@@ -15,5 +15,5 @@ export function handleEvent(eventData: DataView): DataView | null {
         return null
     }
 
-    return event.encodeDataView()
+    return event.encode()
 }            

@@ -13,7 +13,7 @@ type Event = events.OneOf;
 // handleEvent is the main plugin function
 export function handleEvent(source: Event): Event | null {
     var event:Event | null = source;
-    
+
     event = hideEvent(event);
     if (event == null) {
         return null;
@@ -84,7 +84,7 @@ function createLockBasedOnEvent(event: Event): Event | null {
             lock.Spec.Expires = new google.protobuf.Timestamp()
             lock.Spec.Expires.seconds = Date.now() + 3600;
 
-            const encoded = lock.encodeDataView()
+            const encoded = lock.encode()
             upsertLock(changetype<usize>(encoded))
         }
     }

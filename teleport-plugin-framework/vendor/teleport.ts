@@ -18,8 +18,8 @@ namespace __proto {
         }
 
         /**
-         * Returns true if current reader has reached it's end
-         * @returns True if current reader has reached it's end
+         * Returns true if current reader has reached the buffer end
+         * @returns True if current reader has reached the buffer end
          */
         @inline
         eof(): bool {
@@ -282,6 +282,7 @@ namespace __proto {
         /**
          * OutOfRange check. Throws an exception if current position exceeds current buffer range
          */
+        @inline
         private throwOutOfRange(): void {
             throw new Error(`Decoder position ${this.pos} is out of range!`);
         }
@@ -478,18 +479,20 @@ namespace __proto {
     }
 }
 /**
- * Allocates the memory segment for a protobuf binary message.
- * @param length Segment length
- * @returns [data view addr, buffer addr]
+ * Allocates and returns the DataView for a protobuf binary message.
+ * @param length Message size
+ * @returns (DataView addr << 32) | Buffer addr
  */
 export function __protobuf_alloc(length: i32): u64 {
     const view = new DataView(new ArrayBuffer(length));
-    __pin(changetype<usize>(view));
-    return (u64(changetype<usize>(view)) << 32) | (changetype<usize>(view.buffer) + view.byteOffset);
+    return (
+        (u64(changetype<usize>(view)) << 32) |
+        (changetype<usize>(view.buffer) + view.byteOffset)
+    );
 }
 
 /**
- * Returns length of the memory segment.
+ * Returns the length of the DataView.
  * @param data DataView instance
  * @returns Length
  */
@@ -498,7 +501,7 @@ export function __protobuf_getLength(view: DataView): u32 {
 }
 
 /**
- * Returns address of the memory segment, accessible via WASM memory.
+ * Returns address of the DataView, accessible via WASM memory.
  *
  * @param data DataView instance
  * @returns Memory address
@@ -509,8 +512,112 @@ export function __protobuf_getAddr(view: DataView): usize {
 
 export namespace google {
     export namespace protobuf {
+        /**
+         * A Timestamp represents a point in time independent of any time zone or local
+         *  calendar, encoded as a count of seconds and fractions of seconds at
+         *  nanosecond resolution. The count is relative to an epoch at UTC midnight on
+         *  January 1, 1970, in the proleptic Gregorian calendar which extends the
+         *  Gregorian calendar backwards to year one.
+         *
+         *  All minutes are 60 seconds long. Leap seconds are "smeared" so that no leap
+         *  second table is needed for interpretation, using a [24-hour linear
+         *  smear](https://developers.google.com/time/smear).
+         *
+         *  The range is from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z. By
+         *  restricting to that range, we ensure that we can convert to and from [RFC
+         *  3339](https://www.ietf.org/rfc/rfc3339.txt) date strings.
+         *
+         *  # Examples
+         *
+         *  Example 1: Compute Timestamp from POSIX `time()`.
+         *
+         *      Timestamp timestamp;
+         *      timestamp.set_seconds(time(NULL));
+         *      timestamp.set_nanos(0);
+         *
+         *  Example 2: Compute Timestamp from POSIX `gettimeofday()`.
+         *
+         *      struct timeval tv;
+         *      gettimeofday(&tv, NULL);
+         *
+         *      Timestamp timestamp;
+         *      timestamp.set_seconds(tv.tv_sec);
+         *      timestamp.set_nanos(tv.tv_usec * 1000);
+         *
+         *  Example 3: Compute Timestamp from Win32 `GetSystemTimeAsFileTime()`.
+         *
+         *      FILETIME ft;
+         *      GetSystemTimeAsFileTime(&ft);
+         *      UINT64 ticks = (((UINT64)ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+         *
+         *      // A Windows tick is 100 nanoseconds. Windows epoch 1601-01-01T00:00:00Z
+         *      // is 11644473600 seconds before Unix epoch 1970-01-01T00:00:00Z.
+         *      Timestamp timestamp;
+         *      timestamp.set_seconds((INT64) ((ticks / 10000000) - 11644473600LL));
+         *      timestamp.set_nanos((INT32) ((ticks % 10000000) * 100));
+         *
+         *  Example 4: Compute Timestamp from Java `System.currentTimeMillis()`.
+         *
+         *      long millis = System.currentTimeMillis();
+         *
+         *      Timestamp timestamp = Timestamp.newBuilder().setSeconds(millis / 1000)
+         *          .setNanos((int) ((millis % 1000) * 1000000)).build();
+         *
+         *
+         *  Example 5: Compute Timestamp from Java `Instant.now()`.
+         *
+         *      Instant now = Instant.now();
+         *
+         *      Timestamp timestamp =
+         *          Timestamp.newBuilder().setSeconds(now.getEpochSecond())
+         *              .setNanos(now.getNano()).build();
+         *
+         *
+         *  Example 6: Compute Timestamp from current time in Python.
+         *
+         *      timestamp = Timestamp()
+         *      timestamp.GetCurrentTime()
+         *
+         *  # JSON Mapping
+         *
+         *  In JSON format, the Timestamp type is encoded as a string in the
+         *  [RFC 3339](https://www.ietf.org/rfc/rfc3339.txt) format. That is, the
+         *  format is "{year}-{month}-{day}T{hour}:{min}:{sec}[.{frac_sec}]Z"
+         *  where {year} is always expressed using four digits while {month}, {day},
+         *  {hour}, {min}, and {sec} are zero-padded to two digits each. The fractional
+         *  seconds, which can go up to 9 digits (i.e. up to 1 nanosecond resolution),
+         *  are optional. The "Z" suffix indicates the timezone ("UTC"); the timezone
+         *  is required. A proto3 JSON serializer should always use UTC (as indicated by
+         *  "Z") when printing the Timestamp type and a proto3 JSON parser should be
+         *  able to accept both UTC and other timezones (as indicated by an offset).
+         *
+         *  For example, "2017-01-15T01:30:15.01Z" encodes 15.01 seconds past
+         *  01:30 UTC on January 15, 2017.
+         *
+         *  In JavaScript, one can convert a Date object to this format using the
+         *  standard
+         *  [toISOString()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString)
+         *  method. In Python, a standard `datetime.datetime` object can be converted
+         *  to this format using
+         *  [`strftime`](https://docs.python.org/2/library/time.html#time.strftime) with
+         *  the time format spec '%Y-%m-%dT%H:%M:%S.%fZ'. Likewise, in Java, one can use
+         *  the Joda Time's [`ISODateTimeFormat.dateTime()`](
+         *  http://www.joda.org/joda-time/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime%2D%2D
+         *  ) to obtain a formatter capable of generating timestamps in this format.
+         */
         export class Timestamp {
+            /**
+             * Represents seconds of UTC time since Unix epoch
+             *  1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
+             *  9999-12-31T23:59:59Z inclusive.
+             */
             public seconds: i64;
+            /**
+             * Non-negative fractions of a second at nanosecond resolution. Negative
+             *  second values with fractions must still have non-negative nanos values
+             *  that count forward in time. Must be from 0 to 999,999,999
+             *  inclusive.
+             */
             public nanos: i32;
 
             // Decodes Timestamp from an ArrayBuffer
@@ -559,8 +666,8 @@ export namespace google {
             }
 
             // Encodes Timestamp to the DataView
-            encodeDataView(): DataView {
-                const source = this.encode();
+            encode(): DataView {
+                const source = this.encodeU8Array();
                 const view = new DataView(new ArrayBuffer(source.length));
                 for (let i: i32 = 0; i < source.length; i++) {
                     view.setUint8(i, source.at(i));
@@ -569,7 +676,7 @@ export namespace google {
             }
 
             // Encodes Timestamp to the Array<u8>
-            encode(
+            encodeU8Array(
                 encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
             ): Array<u8> {
                 const buf = encoder.buf;
@@ -587,10 +694,28 @@ export namespace google {
             } // encode Timestamp
         } // Timestamp
 
+        /**
+         * `NullValue` is a singleton enumeration to represent the null value for the
+         *  `Value` type union.
+         *
+         *   The JSON representation for `NullValue` is JSON `null`.
+         */
         export enum NullValue {
+            // Null value.
             NULL_VALUE = 0,
         } // NullValue
+        /**
+         * `Struct` represents a structured data value, consisting of fields
+         *  which map to dynamically typed values. In some languages, `Struct`
+         *  might be supported by a native representation. For example, in
+         *  scripting languages like JS a struct is represented as an
+         *  object. The details of that representation are described together
+         *  with the proto support for the language.
+         *
+         *  The JSON representation for `Struct` is JSON object.
+         */
         export class Struct {
+            // Unordered map of dynamically typed values.
             public fields: Map<string, google.protobuf.Value> = new Map<
                 string,
                 google.protobuf.Value
@@ -656,8 +781,8 @@ export namespace google {
             }
 
             // Encodes Struct to the DataView
-            encodeDataView(): DataView {
-                const source = this.encode();
+            encode(): DataView {
+                const source = this.encodeU8Array();
                 const view = new DataView(new ArrayBuffer(source.length));
                 for (let i: i32 = 0; i < source.length; i++) {
                     view.setUint8(i, source.at(i));
@@ -666,7 +791,7 @@ export namespace google {
             }
 
             // Encodes Struct to the Array<u8>
-            encode(
+            encodeU8Array(
                 encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
             ): Array<u8> {
                 const buf = encoder.buf;
@@ -695,7 +820,7 @@ export namespace google {
                             if (messageSize > 0) {
                                 encoder.uint32(0x12);
                                 encoder.uint32(messageSize);
-                                value.encode(encoder);
+                                value.encodeU8Array(encoder);
                             }
                         }
                     }
@@ -705,12 +830,27 @@ export namespace google {
             } // encode Struct
         } // Struct
 
+        /**
+         * `Value` represents a dynamically typed value which can be either
+         *  null, a number, a string, a boolean, a recursive struct value, or a
+         *  list of values. A producer of value is expected to set one of that
+         *  variants, absence of any variant indicates an error.
+         *
+         *  The JSON representation for `Value` is JSON value.
+         */
         export class Value {
+            public __oneOf_kind: string = "";
+            // Represents a null value.
             public null_value: u32;
+            // Represents a double value.
             public number_value: f64;
+            // Represents a string value.
             public string_value: string = "";
+            // Represents a boolean value.
             public bool_value: bool;
+            // Represents a structured value.
             public struct_value: google.protobuf.Struct | null;
+            // Represents a repeated `Value`.
             public list_value: google.protobuf.ListValue | null;
 
             // Decodes Value from an ArrayBuffer
@@ -730,18 +870,22 @@ export namespace google {
                     switch (number) {
                         case 1: {
                             obj.null_value = decoder.uint32();
+                            obj.__oneOf_kind = "null_value";
                             break;
                         }
                         case 2: {
                             obj.number_value = decoder.double();
+                            obj.__oneOf_kind = "number_value";
                             break;
                         }
                         case 3: {
                             obj.string_value = decoder.string();
+                            obj.__oneOf_kind = "string_value";
                             break;
                         }
                         case 4: {
                             obj.bool_value = decoder.bool();
+                            obj.__oneOf_kind = "bool_value";
                             break;
                         }
                         case 5: {
@@ -755,6 +899,7 @@ export namespace google {
                             );
                             decoder.skip(length);
 
+                            obj.__oneOf_kind = "struct_value";
                             break;
                         }
                         case 6: {
@@ -768,6 +913,7 @@ export namespace google {
                             );
                             decoder.skip(length);
 
+                            obj.__oneOf_kind = "list_value";
                             break;
                         }
 
@@ -825,8 +971,8 @@ export namespace google {
             }
 
             // Encodes Value to the DataView
-            encodeDataView(): DataView {
-                const source = this.encode();
+            encode(): DataView {
+                const source = this.encodeU8Array();
                 const view = new DataView(new ArrayBuffer(source.length));
                 for (let i: i32 = 0; i < source.length; i++) {
                     view.setUint8(i, source.at(i));
@@ -835,7 +981,7 @@ export namespace google {
             }
 
             // Encodes Value to the Array<u8>
-            encode(
+            encodeU8Array(
                 encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
             ): Array<u8> {
                 const buf = encoder.buf;
@@ -866,7 +1012,7 @@ export namespace google {
                     if (messageSize > 0) {
                         encoder.uint32(0x2a);
                         encoder.uint32(messageSize);
-                        f.encode(encoder);
+                        f.encodeU8Array(encoder);
                     }
                 }
 
@@ -878,7 +1024,7 @@ export namespace google {
                     if (messageSize > 0) {
                         encoder.uint32(0x32);
                         encoder.uint32(messageSize);
-                        f.encode(encoder);
+                        f.encodeU8Array(encoder);
                     }
                 }
 
@@ -886,7 +1032,13 @@ export namespace google {
             } // encode Value
         } // Value
 
+        /**
+         * `ListValue` is a wrapper around a repeated field of values.
+         *
+         *  The JSON representation for `ListValue` is JSON array.
+         */
         export class ListValue {
+            // Repeated field of dynamically typed values.
             public values: Array<google.protobuf.Value> =
                 new Array<google.protobuf.Value>();
 
@@ -947,8 +1099,8 @@ export namespace google {
             }
 
             // Encodes ListValue to the DataView
-            encodeDataView(): DataView {
-                const source = this.encode();
+            encode(): DataView {
+                const source = this.encodeU8Array();
                 const view = new DataView(new ArrayBuffer(source.length));
                 for (let i: i32 = 0; i < source.length; i++) {
                     view.setUint8(i, source.at(i));
@@ -957,7 +1109,7 @@ export namespace google {
             }
 
             // Encodes ListValue to the Array<u8>
-            encode(
+            encodeU8Array(
                 encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
             ): Array<u8> {
                 const buf = encoder.buf;
@@ -968,7 +1120,7 @@ export namespace google {
                     if (messageSize > 0) {
                         encoder.uint32(0xa);
                         encoder.uint32(messageSize);
-                        this.values[n].encode(encoder);
+                        this.values[n].encodeU8Array(encoder);
                     }
                 }
 
@@ -978,6 +1130,7 @@ export namespace google {
     } // protobuf
 } // google
 export namespace wrappers {
+    // StringValues is a list of strings.
     export class StringValues {
         public Values: Array<string> = new Array<string>();
 
@@ -1018,8 +1171,8 @@ export namespace wrappers {
         }
 
         // Encodes StringValues to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -1028,7 +1181,7 @@ export namespace wrappers {
         }
 
         // Encodes StringValues to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -1045,7 +1198,12 @@ export namespace wrappers {
         } // encode StringValues
     } // StringValues
 
+    /**
+     * LabelValues is a list of key value pairs, where key is a string
+     *  and value is a list of string values.
+     */
     export class LabelValues {
+        // Values contains key value pairs.
         public Values: Map<string, wrappers.StringValues> = new Map<
             string,
             wrappers.StringValues
@@ -1107,8 +1265,8 @@ export namespace wrappers {
         }
 
         // Encodes LabelValues to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -1117,7 +1275,7 @@ export namespace wrappers {
         }
 
         // Encodes LabelValues to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -1145,7 +1303,7 @@ export namespace wrappers {
                         if (messageSize > 0) {
                             encoder.uint32(0x12);
                             encoder.uint32(messageSize);
-                            value.encode(encoder);
+                            value.encodeU8Array(encoder);
                         }
                     }
                 }
@@ -1156,36 +1314,86 @@ export namespace wrappers {
     } // LabelValues
 } // wrappers
 export namespace types {
+    /**
+     * DatabaseTLSMode represents the level of TLS verification performed by
+     *  DB agent when connecting to a database.
+     */
+    export enum DatabaseTLSMode {
+        // VERIFY_FULL performs full certificate validation.
+        VERIFY_FULL = 0,
+        // VERIFY_CA works the same as VERIFY_FULL, but it skips the hostname check.
+        VERIFY_CA = 1,
+        // INSECURE accepts any certificate provided by server. This is the least secure option.
+        INSECURE = 2,
+    } // DatabaseTLSMode
+    // PrivateKeyType is the storage type of a private key.
     export enum PrivateKeyType {
+        // RAW is a plaintext private key.
         RAW = 0,
+        // PKCS11 is a private key backed by a PKCS11 device such as HSM.
         PKCS11 = 1,
     } // PrivateKeyType
+    // ProxyListenerMode represents the cluster proxy listener mode.
     export enum ProxyListenerMode {
+        /**
+         * Separate is the proxy listener mode indicating that proxies are running
+         *  in separate listener mode where Teleport Proxy services use different listeners.
+         */
         Separate = 0,
+        /**
+         * Multiplex is the proxy listener mode indicating the proxy should use multiplex mode
+         *  where all proxy services are multiplexed on a single proxy port.
+         */
         Multiplex = 1,
     } // ProxyListenerMode
+    // RoutingStrategy determines the strategy used to route to nodes.
     export enum RoutingStrategy {
+        // UnambiguousMatch only routes to distinct nodes.
         UNAMBIGUOUS_MATCH = 0,
+        // MostRecent routes to the most recently heartbeated node if duplicates are present.
         MOST_RECENT = 1,
     } // RoutingStrategy
+    // UserTokenUsage contains additional information about the intended usage of a user token.
     export enum UserTokenUsage {
+        // Default value that implies token usage was not set.
         USER_TOKEN_USAGE_UNSPECIFIED = 0,
+        // USER_TOKEN_RECOVER_PASSWORD is a request to recover password.
         USER_TOKEN_RECOVER_PASSWORD = 1,
+        // USER_TOKEN_RECOVER_MFA is a request to recover a MFA.
         USER_TOKEN_RECOVER_MFA = 2,
     } // UserTokenUsage
+    // RequestState represents the state of a request for escalated privilege.
     export enum RequestState {
+        /**
+         * NONE variant exists to allow RequestState to be explicitly omitted
+         *  in certain circumstances (e.g. in an AccessRequestFilter).
+         */
         NONE = 0,
+        // PENDING variant is the default for newly created requests.
         PENDING = 1,
+        /**
+         * APPROVED variant indicates that a request has been accepted by
+         *  an administrating party.
+         */
         APPROVED = 2,
+        /**
+         * DENIED variant indicates that a request has been rejected by
+         *  an administrating party.
+         */
         DENIED = 3,
     } // RequestState
     export class KeepAlive {
+        // Name of the resource to keep alive.
         public Name: string = "";
+        // Namespace is the namespace of the resource.
         public Namespace: string = "";
+        // LeaseID is ID of the lease.
         public LeaseID: i64;
+        // Expires is set to update expiry time of the resource.
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
         public Type: u32;
+        // HostID is an optional UUID of the host the resource belongs to.
         public HostID: string = "";
 
         // Decodes KeepAlive from an ArrayBuffer
@@ -1286,8 +1494,8 @@ export namespace types {
         }
 
         // Encodes KeepAlive to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -1296,7 +1504,7 @@ export namespace types {
         }
 
         // Encodes KeepAlive to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -1324,7 +1532,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -1342,6 +1550,10 @@ export namespace types {
         } // encode KeepAlive
     } // KeepAlive
 
+    /**
+     * Type is the type of keep alive, used by servers. At the moment only
+     *  "node", "app" and "database" are supported.
+     */
     export enum KeepAlive_KeepAliveType {
         UNKNOWN = 0,
         NODE = 1,
@@ -1349,13 +1561,26 @@ export namespace types {
         DATABASE = 3,
         WINDOWS_DESKTOP = 4,
     } // KeepAlive_KeepAliveType
+    // ServerSpecV2 is a specification for V2 Server
     export class Metadata {
+        // Name is an object name
         public Name: string = "";
+        /**
+         * Namespace is object namespace. The field should be called "namespace"
+         *  when it returns in Teleport 2.4.
+         */
         public Namespace: string = "";
+        // Description is object description
         public Description: string = "";
+        // Labels is a set of labels
         public Labels: Map<string, string> = new Map<string, string>();
+        /**
+         * Expires is a global expiry time header can be set on any resource in the
+         *  system.
+         */
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // ID is a record ID
         public ID: i64;
 
         // Decodes Metadata from an ArrayBuffer
@@ -1470,8 +1695,8 @@ export namespace types {
         }
 
         // Encodes Metadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -1480,7 +1705,7 @@ export namespace types {
         }
 
         // Encodes Metadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -1532,7 +1757,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -1545,16 +1770,37 @@ export namespace types {
         } // encode Metadata
     } // Metadata
 
+    // SSHKeyPair is an SSH CA key pair.
     export class Rotation {
+        // State could be one of "init" or "in_progress".
         public State: string = "";
+        // Phase is the current rotation phase.
         public Phase: string = "";
+        // Mode sets manual or automatic rotation mode.
         public Mode: string = "";
+        /**
+         * CurrentID is the ID of the rotation operation
+         *  to differentiate between rotation attempts.
+         */
         public CurrentID: string = "";
+        /**
+         * Started is set to the time when rotation has been started
+         *  in case if the state of the rotation is "in_progress".
+         */
         public Started: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        /**
+         * GracePeriod is a period during which old and new CA
+         *  are valid for checking purposes, but only new CA is issuing certificates.
+         */
         public GracePeriod: i64;
+        // LastRotated specifies the last time of the completed rotation.
         public LastRotated: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        /**
+         * Schedule is a rotation schedule - used in
+         *  automatic mode to switch beetween phases.
+         */
         public Schedule: types.RotationSchedule = new types.RotationSchedule();
 
         // Decodes Rotation from an ArrayBuffer
@@ -1710,8 +1956,8 @@ export namespace types {
         }
 
         // Encodes Rotation to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -1720,7 +1966,7 @@ export namespace types {
         }
 
         // Encodes Rotation to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -1754,7 +2000,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -1771,7 +2017,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -1783,7 +2029,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -1791,11 +2037,18 @@ export namespace types {
         } // encode Rotation
     } // Rotation
 
+    /**
+     * TokenRule is a rule that a joining node must match in order to use the
+     *  associated token.
+     */
     export class RotationSchedule {
+        // UpdateClients specifies time to switch to the "Update clients" phase
         public UpdateClients: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // UpdateServers specifies time to switch to the "Update servers" phase.
         public UpdateServers: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // Standby specifies time to switch to the "Standby" phase.
         public Standby: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
 
@@ -1902,8 +2155,8 @@ export namespace types {
         }
 
         // Encodes RotationSchedule to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -1912,7 +2165,7 @@ export namespace types {
         }
 
         // Encodes RotationSchedule to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -1925,7 +2178,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -1937,7 +2190,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -1949,7 +2202,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -1957,10 +2210,15 @@ export namespace types {
         } // encode RotationSchedule
     } // RotationSchedule
 
+    // SessionRecordingConfigV2 contains session recording configuration.
     export class ResourceHeader {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
 
         // Decodes ResourceHeader from an ArrayBuffer
@@ -2048,8 +2306,8 @@ export namespace types {
         }
 
         // Encodes ResourceHeader to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -2058,7 +2316,7 @@ export namespace types {
         }
 
         // Encodes ResourceHeader to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -2087,7 +2345,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -2095,11 +2353,17 @@ export namespace types {
         } // encode ResourceHeader
     } // ResourceHeader
 
+    // NamespaceSpec is a namespace specificateion
     export class DatabaseServerV3 {
+        // Kind is the database server resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource subkind.
         public SubKind: string = "";
+        // Version is the resource version.
         public Version: string = "";
+        // Metadata is the database server metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is the database server spec.
         public Spec: types.DatabaseServerSpecV3 =
             new types.DatabaseServerSpecV3();
 
@@ -2212,8 +2476,8 @@ export namespace types {
         }
 
         // Encodes DatabaseServerV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -2222,7 +2486,7 @@ export namespace types {
         }
 
         // Encodes DatabaseServerV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -2251,7 +2515,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -2263,7 +2527,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -2271,21 +2535,66 @@ export namespace types {
         } // encode DatabaseServerV3
     } // DatabaseServerV3
 
+    /**
+     * AccessCapabilities is a summary of capabilities that a user
+     *  is granted via their dynamic access privileges which may not be
+     *  calculable by directly examining the user's own static roles.
+     */
     export class DatabaseServerSpecV3 {
+        /**
+         * Description is a free-form text describing this database server.
+         *
+         *  DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+         */
         public Description: string = "";
+        /**
+         * Protocol is the database type e.g. postgres, mysql, etc.
+         *
+         *  DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+         */
         public Protocol: string = "";
+        /**
+         * URI is the database connection address.
+         *
+         *  DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+         */
         public URI: string = "";
+        /**
+         * CACert is an optional base64-encoded database CA certificate.
+         *
+         *  DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+         */
         public CACert: Array<u8> = new Array<u8>();
+        /**
+         * AWS contains AWS specific settings for RDS/Aurora databases.
+         *
+         *  DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+         */
         public AWS: types.AWS = new types.AWS();
+        // Version is the Teleport version that the server is running.
         public Version: string = "";
+        // Hostname is the database server hostname.
         public Hostname: string = "";
+        // HostID is the ID of the host the database server is running on.
         public HostID: string = "";
+        /**
+         * DynamicLabels is the database server dynamic labels.
+         *
+         *  DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+         */
         public DynamicLabels: Map<string, types.CommandLabelV2> = new Map<
             string,
             types.CommandLabelV2
         >();
+        // Rotation contains the server CA rotation information.
         public Rotation: types.Rotation = new types.Rotation();
+        /**
+         * GCP contains parameters specific to GCP Cloud SQL databases.
+         *
+         *  DEPRECATED: Moved to DatabaseSpecV3. DELETE IN 9.0.
+         */
         public GCP: types.GCPCloudSQL = new types.GCPCloudSQL();
+        // Database is the database proxied by this database server.
         public Database: types.DatabaseV3 = new types.DatabaseV3();
 
         // Decodes DatabaseServerSpecV3 from an ArrayBuffer
@@ -2510,8 +2819,8 @@ export namespace types {
         }
 
         // Encodes DatabaseServerSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -2520,7 +2829,7 @@ export namespace types {
         }
 
         // Encodes DatabaseServerSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -2554,7 +2863,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -2597,7 +2906,7 @@ export namespace types {
                         if (messageSize > 0) {
                             encoder.uint32(0x12);
                             encoder.uint32(messageSize);
-                            value.encode(encoder);
+                            value.encodeU8Array(encoder);
                         }
                     }
                 }
@@ -2611,7 +2920,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -2623,7 +2932,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x5a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -2635,7 +2944,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x62);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -2643,7 +2952,12 @@ export namespace types {
         } // encode DatabaseServerSpecV3
     } // DatabaseServerSpecV3
 
+    /**
+     * RoleConditions is a set of conditions that must all match to be allowed or
+     *  denied access.
+     */
     export class DatabaseV3List {
+        // Databases is a list of database resources.
         public Databases: Array<types.DatabaseV3> =
             new Array<types.DatabaseV3>();
 
@@ -2702,8 +3016,8 @@ export namespace types {
         }
 
         // Encodes DatabaseV3List to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -2712,7 +3026,7 @@ export namespace types {
         }
 
         // Encodes DatabaseV3List to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -2723,7 +3037,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.Databases[n].encode(encoder);
+                    this.Databases[n].encodeU8Array(encoder);
                 }
             }
 
@@ -2731,12 +3045,19 @@ export namespace types {
         } // encode DatabaseV3List
     } // DatabaseV3List
 
+    // LoginStatus is a login status of the user
     export class DatabaseV3 {
+        // Kind is the database resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource subkind.
         public SubKind: string = "";
+        // Version is the resource version.
         public Version: string = "";
+        // Metadata is the database metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is the database spec.
         public Spec: types.DatabaseSpecV3 = new types.DatabaseSpecV3();
+        // Status is the database runtime information.
         public Status: types.DatabaseStatusV3 = new types.DatabaseStatusV3();
 
         // Decodes DatabaseV3 from an ArrayBuffer
@@ -2872,8 +3193,8 @@ export namespace types {
         }
 
         // Encodes DatabaseV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -2882,7 +3203,7 @@ export namespace types {
         }
 
         // Encodes DatabaseV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -2911,7 +3232,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -2923,7 +3244,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -2935,7 +3256,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -2943,16 +3264,34 @@ export namespace types {
         } // encode DatabaseV3
     } // DatabaseV3
 
+    // UserRef holds references to user
     export class DatabaseSpecV3 {
+        // Protocol is the database protocol: postgres, mysql, mongodb, etc.
         public Protocol: string = "";
+        // URI is the database connection endpoint.
         public URI: string = "";
+        /**
+         * CACert is the PEM-encoded database CA certificate.
+         *
+         *  DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.
+         */
         public CACert: string = "";
+        // DynamicLabels is the database dynamic labels.
         public DynamicLabels: Map<string, types.CommandLabelV2> = new Map<
             string,
             types.CommandLabelV2
         >();
+        // AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
         public AWS: types.AWS = new types.AWS();
+        // GCP contains parameters specific to GCP Cloud SQL databases.
         public GCP: types.GCPCloudSQL = new types.GCPCloudSQL();
+        // Azure contains Azure specific database metadata.
+        public Azure: types.Azure = new types.Azure();
+        /**
+         * TLS is the TLS configuration used when establishing connection to target database.
+         *  Allows to provide custom CA cert or override server name.
+         */
+        public TLS: types.DatabaseTLS = new types.DatabaseTLS();
 
         // Decodes DatabaseSpecV3 from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): DatabaseSpecV3 {
@@ -3008,6 +3347,32 @@ export namespace types {
                     case 6: {
                         const length = decoder.uint32();
                         obj.GCP = types.GCPCloudSQL.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 7: {
+                        const length = decoder.uint32();
+                        obj.Azure = types.Azure.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 8: {
+                        const length = decoder.uint32();
+                        obj.TLS = types.DatabaseTLS.decode(
                             new DataView(
                                 decoder.view.buffer,
                                 decoder.pos + decoder.view.byteOffset,
@@ -3085,12 +3450,32 @@ export namespace types {
                 }
             }
 
+            if (this.Azure != null) {
+                const f: types.Azure = this.Azure as types.Azure;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            if (this.TLS != null) {
+                const f: types.DatabaseTLS = this.TLS as types.DatabaseTLS;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
             return size;
         }
 
         // Encodes DatabaseSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -3099,7 +3484,7 @@ export namespace types {
         }
 
         // Encodes DatabaseSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -3143,7 +3528,7 @@ export namespace types {
                         if (messageSize > 0) {
                             encoder.uint32(0x12);
                             encoder.uint32(messageSize);
-                            value.encode(encoder);
+                            value.encodeU8Array(encoder);
                         }
                     }
                 }
@@ -3157,7 +3542,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -3169,7 +3554,31 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.Azure != null) {
+                const f = this.Azure as types.Azure;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x3a);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.TLS != null) {
+                const f = this.TLS as types.DatabaseTLS;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x42);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -3177,8 +3586,11 @@ export namespace types {
         } // encode DatabaseSpecV3
     } // DatabaseSpecV3
 
+    // SemaphoreSpecV3 contains the data about lease
     export class DatabaseStatusV3 {
+        // CACert is the auto-downloaded cloud database CA certificate.
         public CACert: string = "";
+        // AWS is the auto-discovered AWS cloud database metadata.
         public AWS: types.AWS = new types.AWS();
 
         // Decodes DatabaseStatusV3 from an ArrayBuffer
@@ -3246,8 +3658,8 @@ export namespace types {
         }
 
         // Encodes DatabaseStatusV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -3256,7 +3668,7 @@ export namespace types {
         }
 
         // Encodes DatabaseStatusV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -3275,7 +3687,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -3283,10 +3695,15 @@ export namespace types {
         } // encode DatabaseStatusV3
     } // DatabaseStatusV3
 
+    // WebTokenSpecV3 is a unique time-limited token bound to a user's web session
     export class AWS {
+        // Region is a AWS cloud region.
         public Region: string = "";
+        // Redshift contains Redshift specific metadata.
         public Redshift: types.Redshift = new types.Redshift();
+        // RDS contains RDS specific metadata.
         public RDS: types.RDS = new types.RDS();
+        // AccountID is the AWS account ID this database belongs to.
         public AccountID: string = "";
 
         // Decodes AWS from an ArrayBuffer
@@ -3388,8 +3805,8 @@ export namespace types {
         }
 
         // Encodes AWS to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -3398,7 +3815,7 @@ export namespace types {
         }
 
         // Encodes AWS to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -3417,7 +3834,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -3429,7 +3846,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -3443,7 +3860,9 @@ export namespace types {
         } // encode AWS
     } // AWS
 
+    // OIDCConnectorV3 represents an OIDC connector.
     export class Redshift {
+        // ClusterID is the Redshift cluster identifier.
         public ClusterID: string = "";
 
         // Decodes Redshift from an ArrayBuffer
@@ -3488,8 +3907,8 @@ export namespace types {
         }
 
         // Encodes Redshift to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -3498,7 +3917,7 @@ export namespace types {
         }
 
         // Encodes Redshift to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -3513,10 +3932,15 @@ export namespace types {
         } // encode Redshift
     } // Redshift
 
+    // GithubConnectorSpecV3 is a Github connector specification.
     export class RDS {
+        // InstanceID is the RDS instance identifier.
         public InstanceID: string = "";
+        // ClusterID is the RDS cluster (Aurora) identifier.
         public ClusterID: string = "";
+        // ResourceID is the RDS instance resource identifier (db-xxx).
         public ResourceID: string = "";
+        // IAMAuth indicates whether database IAM authentication is enabled.
         public IAMAuth: bool;
 
         // Decodes RDS from an ArrayBuffer
@@ -3586,8 +4010,8 @@ export namespace types {
         }
 
         // Encodes RDS to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -3596,7 +4020,7 @@ export namespace types {
         }
 
         // Encodes RDS to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -3625,8 +4049,16 @@ export namespace types {
         } // encode RDS
     } // RDS
 
+    /**
+     * NetworkRestrictions specifies a list of addresses to restrict (block). The deny
+     *  list is checked first and the allow lists overrides it. Thus an empty allow
+     *  list does not mean that no addresses will be allowed, that will only be the
+     *  case if the deny list covers the whole address range.
+     */
     export class GCPCloudSQL {
+        // ProjectID is the GCP project ID the Cloud SQL instance resides in.
         public ProjectID: string = "";
+        // InstanceID is the Cloud SQL instance ID.
         public InstanceID: string = "";
 
         // Decodes GCPCloudSQL from an ArrayBuffer
@@ -3681,8 +4113,8 @@ export namespace types {
         }
 
         // Encodes GCPCloudSQL to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -3691,7 +4123,7 @@ export namespace types {
         }
 
         // Encodes GCPCloudSQL to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -3711,11 +4143,195 @@ export namespace types {
         } // encode GCPCloudSQL
     } // GCPCloudSQL
 
+    // RecoveryCode describes a recovery code.
+    export class Azure {
+        // Name is the Azure database server name.
+        public Name: string = "";
+
+        // Decodes Azure from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): Azure {
+            return Azure.decode(new DataView(buf));
+        }
+
+        // Decodes Azure from a DataView
+        static decode(view: DataView): Azure {
+            const decoder = new __proto.Decoder(view);
+            const obj = new Azure();
+
+            while (!decoder.eof()) {
+                const tag = decoder.tag();
+                const number = tag >>> 3;
+
+                switch (number) {
+                    case 1: {
+                        obj.Name = decoder.string();
+                        break;
+                    }
+
+                    default:
+                        decoder.skipType(tag & 7);
+                        break;
+                }
+            }
+            return obj;
+        } // decode Azure
+
+        public size(): u32 {
+            let size: u32 = 0;
+
+            size +=
+                this.Name.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.Name.length) +
+                      this.Name.length
+                    : 0;
+
+            return size;
+        }
+
+        // Encodes Azure to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
+            const view = new DataView(new ArrayBuffer(source.length));
+            for (let i: i32 = 0; i < source.length; i++) {
+                view.setUint8(i, source.at(i));
+            }
+            return view;
+        }
+
+        // Encodes Azure to the Array<u8>
+        encodeU8Array(
+            encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
+        ): Array<u8> {
+            const buf = encoder.buf;
+
+            if (this.Name.length > 0) {
+                encoder.uint32(0xa);
+                encoder.uint32(this.Name.length);
+                encoder.string(this.Name);
+            }
+
+            return buf;
+        } // encode Azure
+    } // Azure
+
+    // DatabaseTLS contains TLS configuration options.
+    export class DatabaseTLS {
+        // Mode is a TLS connection mode. See DatabaseTLSMode for details.
+        public Mode: u32;
+        /**
+         * CACert is an optional user provided CA certificate used for verifying
+         *  database TLS connection.
+         */
+        public CACert: string = "";
+        /**
+         * ServerName allows to provide custom hostname. This value will override the
+         *  servername/hostname on a certificate during validation.
+         */
+        public ServerName: string = "";
+
+        // Decodes DatabaseTLS from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): DatabaseTLS {
+            return DatabaseTLS.decode(new DataView(buf));
+        }
+
+        // Decodes DatabaseTLS from a DataView
+        static decode(view: DataView): DatabaseTLS {
+            const decoder = new __proto.Decoder(view);
+            const obj = new DatabaseTLS();
+
+            while (!decoder.eof()) {
+                const tag = decoder.tag();
+                const number = tag >>> 3;
+
+                switch (number) {
+                    case 1: {
+                        obj.Mode = decoder.uint32();
+                        break;
+                    }
+                    case 2: {
+                        obj.CACert = decoder.string();
+                        break;
+                    }
+                    case 3: {
+                        obj.ServerName = decoder.string();
+                        break;
+                    }
+
+                    default:
+                        decoder.skipType(tag & 7);
+                        break;
+                }
+            }
+            return obj;
+        } // decode DatabaseTLS
+
+        public size(): u32 {
+            let size: u32 = 0;
+
+            size += this.Mode == 0 ? 0 : 1 + __proto.Sizer.uint32(this.Mode);
+            size +=
+                this.CACert.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.CACert.length) +
+                      this.CACert.length
+                    : 0;
+            size +=
+                this.ServerName.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.ServerName.length) +
+                      this.ServerName.length
+                    : 0;
+
+            return size;
+        }
+
+        // Encodes DatabaseTLS to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
+            const view = new DataView(new ArrayBuffer(source.length));
+            for (let i: i32 = 0; i < source.length; i++) {
+                view.setUint8(i, source.at(i));
+            }
+            return view;
+        }
+
+        // Encodes DatabaseTLS to the Array<u8>
+        encodeU8Array(
+            encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
+        ): Array<u8> {
+            const buf = encoder.buf;
+
+            if (this.Mode != 0) {
+                encoder.uint32(0x8);
+                encoder.uint32(this.Mode);
+            }
+            if (this.CACert.length > 0) {
+                encoder.uint32(0x12);
+                encoder.uint32(this.CACert.length);
+                encoder.string(this.CACert);
+            }
+            if (this.ServerName.length > 0) {
+                encoder.uint32(0x1a);
+                encoder.uint32(this.ServerName.length);
+                encoder.string(this.ServerName);
+            }
+
+            return buf;
+        } // encode DatabaseTLS
+    } // DatabaseTLS
+
+    // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
     export class ServerV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a server spec
         public Spec: types.ServerSpecV2 = new types.ServerSpecV2();
 
         // Decodes ServerV2 from an ArrayBuffer
@@ -3826,8 +4442,8 @@ export namespace types {
         }
 
         // Encodes ServerV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -3836,7 +4452,7 @@ export namespace types {
         }
 
         // Encodes ServerV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -3865,7 +4481,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -3877,7 +4493,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -3885,7 +4501,12 @@ export namespace types {
         } // encode ServerV2
     } // ServerV2
 
+    /**
+     * ServerV2List is a list of servers.
+     *  DELETE IN 8.0.0 only used in deprecated GetNodes rpc
+     */
     export class ServerV2List {
+        // Servers is a list of servers.
         public Servers: Array<types.ServerV2> = new Array<types.ServerV2>();
 
         // Decodes ServerV2List from an ArrayBuffer
@@ -3943,8 +4564,8 @@ export namespace types {
         }
 
         // Encodes ServerV2List to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -3953,7 +4574,7 @@ export namespace types {
         }
 
         // Encodes ServerV2List to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -3964,7 +4585,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.Servers[n].encode(encoder);
+                    this.Servers[n].encodeU8Array(encoder);
                 }
             }
 
@@ -3972,18 +4593,42 @@ export namespace types {
         } // encode ServerV2List
     } // ServerV2List
 
+    // ServerSpecV2 is a specification for V2 Server
     export class ServerSpecV2 {
+        // Addr is server host:port address
         public Addr: string = "";
+        // PublicAddr is the public address this cluster can be reached at.
         public PublicAddr: string = "";
+        // Hostname is server hostname
         public Hostname: string = "";
+        // CmdLabels is server dynamic labels
         public CmdLabels: Map<string, types.CommandLabelV2> = new Map<
             string,
             types.CommandLabelV2
         >();
+        // Rotation specifies server rotation
         public Rotation: types.Rotation = new types.Rotation();
+        /**
+         * UseTunnel indicates that connections to this server should occur over a
+         *  reverse tunnel.
+         */
         public UseTunnel: bool;
+        // TeleportVersion is the teleport version that the server is running on
         public Version: string = "";
+        /**
+         * Apps is a list of applications this server is proxying.
+         *
+         *  DELETE IN 9.0. Deprecated, moved to AppServerSpecV3.
+         */
         public Apps: Array<types.App> = new Array<types.App>();
+        /**
+         * KubernetesClusters is a list of kubernetes clusters provided by this
+         *  Proxy or KubeService server.
+         *
+         *  Important: jsontag must not be "kubernetes_clusters", because a
+         *  different field with that jsontag existed in 4.4:
+         *  https://github.com/gravitational/teleport/issues/4862
+         */
         public KubernetesClusters: Array<types.KubernetesCluster> =
             new Array<types.KubernetesCluster>();
 
@@ -4163,8 +4808,8 @@ export namespace types {
         }
 
         // Encodes ServerSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -4173,7 +4818,7 @@ export namespace types {
         }
 
         // Encodes ServerSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -4217,7 +4862,7 @@ export namespace types {
                         if (messageSize > 0) {
                             encoder.uint32(0x12);
                             encoder.uint32(messageSize);
-                            value.encode(encoder);
+                            value.encodeU8Array(encoder);
                         }
                     }
                 }
@@ -4231,7 +4876,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -4251,7 +4896,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x4a);
                     encoder.uint32(messageSize);
-                    this.Apps[n].encode(encoder);
+                    this.Apps[n].encodeU8Array(encoder);
                 }
             }
 
@@ -4261,7 +4906,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    this.KubernetesClusters[n].encode(encoder);
+                    this.KubernetesClusters[n].encodeU8Array(encoder);
                 }
             }
 
@@ -4269,11 +4914,17 @@ export namespace types {
         } // encode ServerSpecV2
     } // ServerSpecV2
 
+    // AppServerV3 represents a single proxied web app.
     export class AppServerV3 {
+        // Kind is the app server resource kind. Always "app_server".
         public Kind: string = "";
+        // SubKind is an optional resource subkind.
         public SubKind: string = "";
+        // Version is the resource version.
         public Version: string = "";
+        // Metadata is the app server metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is the app server spec.
         public Spec: types.AppServerSpecV3 = new types.AppServerSpecV3();
 
         // Decodes AppServerV3 from an ArrayBuffer
@@ -4385,8 +5036,8 @@ export namespace types {
         }
 
         // Encodes AppServerV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -4395,7 +5046,7 @@ export namespace types {
         }
 
         // Encodes AppServerV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -4424,7 +5075,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -4436,7 +5087,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -4444,11 +5095,17 @@ export namespace types {
         } // encode AppServerV3
     } // AppServerV3
 
+    // AppServerSpecV3 is the app access server spec.
     export class AppServerSpecV3 {
+        // Version is the Teleport version that the server is running.
         public Version: string = "";
+        // Hostname is the app server hostname.
         public Hostname: string = "";
+        // HostID is the app server host uuid.
         public HostID: string = "";
+        // Rotation contains the app server CA rotation information.
         public Rotation: types.Rotation = new types.Rotation();
+        // App is the app proxied by this app server.
         public App: types.AppV3 = new types.AppV3();
 
         // Decodes AppServerSpecV3 from an ArrayBuffer
@@ -4559,8 +5216,8 @@ export namespace types {
         }
 
         // Encodes AppServerSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -4569,7 +5226,7 @@ export namespace types {
         }
 
         // Encodes AppServerSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -4598,7 +5255,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -4610,7 +5267,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -4618,7 +5275,9 @@ export namespace types {
         } // encode AppServerSpecV3
     } // AppServerSpecV3
 
+    // AppV3List represents a list of app resources.
     export class AppV3List {
+        // Apps is a list of app resources.
         public Apps: Array<types.AppV3> = new Array<types.AppV3>();
 
         // Decodes AppV3List from an ArrayBuffer
@@ -4676,8 +5335,8 @@ export namespace types {
         }
 
         // Encodes AppV3List to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -4686,7 +5345,7 @@ export namespace types {
         }
 
         // Encodes AppV3List to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -4697,7 +5356,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.Apps[n].encode(encoder);
+                    this.Apps[n].encodeU8Array(encoder);
                 }
             }
 
@@ -4705,11 +5364,17 @@ export namespace types {
         } // encode AppV3List
     } // AppV3List
 
+    // AppV3 represents an app resource.
     export class AppV3 {
+        // Kind is the app resource kind. Always "app".
         public Kind: string = "";
+        // SubKind is an optional resource subkind.
         public SubKind: string = "";
+        // Version is the resource version.
         public Version: string = "";
+        // Metadata is the app resource metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is the app resource spec.
         public Spec: types.AppSpecV3 = new types.AppSpecV3();
 
         // Decodes AppV3 from an ArrayBuffer
@@ -4820,8 +5485,8 @@ export namespace types {
         }
 
         // Encodes AppV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -4830,7 +5495,7 @@ export namespace types {
         }
 
         // Encodes AppV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -4859,7 +5524,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -4871,7 +5536,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -4879,14 +5544,20 @@ export namespace types {
         } // encode AppV3
     } // AppV3
 
+    // AppSpecV3 is the AppV3 resource spec.
     export class AppSpecV3 {
+        // URI is the web app endpoint.
         public URI: string = "";
+        // PublicAddr is the public address the application is accessible at.
         public PublicAddr: string = "";
+        // DynamicLabels are the app's command labels.
         public DynamicLabels: Map<string, types.CommandLabelV2> = new Map<
             string,
             types.CommandLabelV2
         >();
+        // InsecureSkipVerify disables app's TLS certificate verification.
         public InsecureSkipVerify: bool;
+        // Rewrite is a list of rewriting rules to apply to requests and responses.
         public Rewrite: types.Rewrite = new types.Rewrite();
 
         // Decodes AppSpecV3 from an ArrayBuffer
@@ -4997,8 +5668,8 @@ export namespace types {
         }
 
         // Encodes AppSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -5007,7 +5678,7 @@ export namespace types {
         }
 
         // Encodes AppSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -5046,7 +5717,7 @@ export namespace types {
                         if (messageSize > 0) {
                             encoder.uint32(0x12);
                             encoder.uint32(messageSize);
-                            value.encode(encoder);
+                            value.encodeU8Array(encoder);
                         }
                     }
                 }
@@ -5065,7 +5736,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -5073,17 +5744,36 @@ export namespace types {
         } // encode AppSpecV3
     } // AppSpecV3
 
+    /**
+     * App is a specific application that a server proxies.
+     *
+     *  DELETE IN 9.0. Deprecated, use AppV3.
+     */
     export class App {
+        // Name is the name of the application.
         public Name: string = "";
+        // URI is the internal address the application is available at.
         public URI: string = "";
+        // PublicAddr is the public address the application is accessible at.
         public PublicAddr: string = "";
+        /**
+         * StaticLabels is map of static labels associated with an application.
+         *  Used for RBAC.
+         */
         public StaticLabels: Map<string, string> = new Map<string, string>();
+        /**
+         * DynamicLabels is map of dynamic labels associated with an application.
+         *  Used for RBAC.
+         */
         public DynamicLabels: Map<string, types.CommandLabelV2> = new Map<
             string,
             types.CommandLabelV2
         >();
+        // InsecureSkipVerify disables app's TLS certificate verification.
         public InsecureSkipVerify: bool;
+        // Rewrite is a list of rewriting rules to apply to requests and responses.
         public Rewrite: types.Rewrite = new types.Rewrite();
+        // Description is an optional free-form app description.
         public Description: string = "";
 
         // Decodes App from an ArrayBuffer
@@ -5239,8 +5929,8 @@ export namespace types {
         }
 
         // Encodes App to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -5249,7 +5939,7 @@ export namespace types {
         }
 
         // Encodes App to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -5316,7 +6006,7 @@ export namespace types {
                         if (messageSize > 0) {
                             encoder.uint32(0x12);
                             encoder.uint32(messageSize);
-                            value.encode(encoder);
+                            value.encodeU8Array(encoder);
                         }
                     }
                 }
@@ -5335,7 +6025,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -5349,8 +6039,17 @@ export namespace types {
         } // encode App
     } // App
 
+    // Rewrite is a list of rewriting rules to apply to requests and responses.
     export class Rewrite {
+        /**
+         * Redirect defines a list of hosts which will be rewritten to the public
+         *  address of the application if they occur in the "Location" header.
+         */
         public Redirect: Array<string> = new Array<string>();
+        /**
+         * Headers is a list of headers to inject when passing the request over
+         *  to the application.
+         */
         public Headers: Array<types.Header> = new Array<types.Header>();
 
         // Decodes Rewrite from an ArrayBuffer
@@ -5414,8 +6113,8 @@ export namespace types {
         }
 
         // Encodes Rewrite to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -5424,7 +6123,7 @@ export namespace types {
         }
 
         // Encodes Rewrite to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -5443,7 +6142,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    this.Headers[n].encode(encoder);
+                    this.Headers[n].encodeU8Array(encoder);
                 }
             }
 
@@ -5451,8 +6150,11 @@ export namespace types {
         } // encode Rewrite
     } // Rewrite
 
+    // Header represents a single http header passed over to the proxied application.
     export class Header {
+        // Name is the http header name.
         public Name: string = "";
+        // Value is the http header value.
         public Value: string = "";
 
         // Decodes Header from an ArrayBuffer
@@ -5507,8 +6209,8 @@ export namespace types {
         }
 
         // Encodes Header to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -5517,7 +6219,7 @@ export namespace types {
         }
 
         // Encodes Header to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -5537,9 +6239,16 @@ export namespace types {
         } // encode Header
     } // Header
 
+    /**
+     * CommandLabelV2 is a label that has a value as a result of the
+     *  output generated by running command, e.g. hostname
+     */
     export class CommandLabelV2 {
+        // Period is a time between command runs
         public Period: i64;
+        // Command is a command to run
         public Command: Array<string> = new Array<string>();
+        // Result captures standard output
         public Result: string = "";
 
         // Decodes CommandLabelV2 from an ArrayBuffer
@@ -5596,8 +6305,8 @@ export namespace types {
         }
 
         // Encodes CommandLabelV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -5606,7 +6315,7 @@ export namespace types {
         }
 
         // Encodes CommandLabelV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -5634,9 +6343,13 @@ export namespace types {
         } // encode CommandLabelV2
     } // CommandLabelV2
 
+    // SSHKeyPair is an SSH CA key pair.
     export class SSHKeyPair {
+        // PublicKey is the SSH public key.
         public PublicKey: Array<u8> = new Array<u8>();
+        // PrivateKey is the SSH private key.
         public PrivateKey: Array<u8> = new Array<u8>();
+        // PrivateKeyType is the type of the PrivateKey.
         public PrivateKeyType: u32;
 
         // Decodes SSHKeyPair from an ArrayBuffer
@@ -5699,8 +6412,8 @@ export namespace types {
         }
 
         // Encodes SSHKeyPair to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -5709,7 +6422,7 @@ export namespace types {
         }
 
         // Encodes SSHKeyPair to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -5733,9 +6446,13 @@ export namespace types {
         } // encode SSHKeyPair
     } // SSHKeyPair
 
+    // TLSKeyPair is a TLS key pair
     export class TLSKeyPair {
+        // Cert is a PEM encoded TLS cert
         public Cert: Array<u8> = new Array<u8>();
+        // Key is a PEM encoded TLS key
         public Key: Array<u8> = new Array<u8>();
+        // KeyType is the type of the Key.
         public KeyType: u32;
 
         // Decodes TLSKeyPair from an ArrayBuffer
@@ -5796,8 +6513,8 @@ export namespace types {
         }
 
         // Encodes TLSKeyPair to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -5806,7 +6523,7 @@ export namespace types {
         }
 
         // Encodes TLSKeyPair to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -5830,9 +6547,13 @@ export namespace types {
         } // encode TLSKeyPair
     } // TLSKeyPair
 
+    // JWTKeyPair is a PEM encoded keypair used for signing JWT tokens.
     export class JWTKeyPair {
+        // PublicKey is a PEM encoded public key.
         public PublicKey: Array<u8> = new Array<u8>();
+        // PrivateKey is a PEM encoded private key.
         public PrivateKey: Array<u8> = new Array<u8>();
+        // PrivateKeyType is the type of the PrivateKey.
         public PrivateKeyType: u32;
 
         // Decodes JWTKeyPair from an ArrayBuffer
@@ -5895,8 +6616,8 @@ export namespace types {
         }
 
         // Encodes JWTKeyPair to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -5905,7 +6626,7 @@ export namespace types {
         }
 
         // Encodes JWTKeyPair to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -5929,11 +6650,17 @@ export namespace types {
         } // encode JWTKeyPair
     } // JWTKeyPair
 
+    // CertAuthorityV2 is version 2 resource spec for Cert Authority
     export class CertAuthorityV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is connector metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec contains cert authority specification
         public Spec: types.CertAuthoritySpecV2 =
             new types.CertAuthoritySpecV2();
 
@@ -6046,8 +6773,8 @@ export namespace types {
         }
 
         // Encodes CertAuthorityV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -6056,7 +6783,7 @@ export namespace types {
         }
 
         // Encodes CertAuthorityV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -6085,7 +6812,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -6097,7 +6824,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -6105,21 +6832,64 @@ export namespace types {
         } // encode CertAuthorityV2
     } // CertAuthorityV2
 
+    /**
+     * CertAuthoritySpecV2 is a host or user certificate authority that
+     *  can check and if it has private key stored as well, sign it too
+     */
     export class CertAuthoritySpecV2 {
+        // Type is either user or host certificate authority
         public Type: string = "";
+        /**
+         * DELETE IN(2.7.0) this field is deprecated,
+         *  as resource name matches cluster name after migrations.
+         *  and this property is enforced by the auth server code.
+         *  ClusterName identifies cluster name this authority serves,
+         *  for host authorities that means base hostname of all servers,
+         *  for user authorities that means organization name
+         */
         public ClusterName: string = "";
+        /**
+         * Checkers is a list of SSH public keys that can be used to check
+         *  certificate signatures
+         *
+         *  DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
+         */
         public CheckingKeys: Array<Array<u8>> = new Array<Array<u8>>();
+        /**
+         * SigningKeys is a list of private keys used for signing
+         *
+         *  DEPRECATED: use ActiveKeys instead.
+         */
         public SigningKeys: Array<Array<u8>> = new Array<Array<u8>>();
+        // Roles is a list of roles assumed by users signed by this CA
         public Roles: Array<string> = new Array<string>();
+        // RoleMap specifies role mappings to remote roles
         public RoleMap: Array<types.RoleMapping> =
             new Array<types.RoleMapping>();
+        /**
+         * TLS is a list of TLS key pairs
+         *
+         *  DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
+         */
         public TLSKeyPairs: Array<types.TLSKeyPair> =
             new Array<types.TLSKeyPair>();
+        // Rotation is a status of the certificate authority rotation
         public Rotation: types.Rotation = new types.Rotation();
         public SigningAlg: u32;
+        /**
+         * JWTKeyPair is a list of JWT key pairs.
+         *
+         *  DEPRECATED: use ActiveKeys and AdditionalTrustedKeys instead.
+         */
         public JWTKeyPairs: Array<types.JWTKeyPair> =
             new Array<types.JWTKeyPair>();
+        // ActiveKeys are the CA key sets used to sign any new certificates.
         public ActiveKeys: types.CAKeySet = new types.CAKeySet();
+        /**
+         * AdditionalTrustedKeys are additional CA key sets that can be used to
+         *  verify certificates. Certificates should be verified with
+         *  AdditionalTrustedKeys and ActiveKeys combined.
+         */
         public AdditionalTrustedKeys: types.CAKeySet = new types.CAKeySet();
 
         // Decodes CertAuthoritySpecV2 from an ArrayBuffer
@@ -6343,8 +7113,8 @@ export namespace types {
         }
 
         // Encodes CertAuthoritySpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -6353,7 +7123,7 @@ export namespace types {
         }
 
         // Encodes CertAuthoritySpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -6399,7 +7169,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    this.RoleMap[n].encode(encoder);
+                    this.RoleMap[n].encodeU8Array(encoder);
                 }
             }
 
@@ -6409,7 +7179,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    this.TLSKeyPairs[n].encode(encoder);
+                    this.TLSKeyPairs[n].encodeU8Array(encoder);
                 }
             }
 
@@ -6421,7 +7191,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -6436,7 +7206,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    this.JWTKeyPairs[n].encode(encoder);
+                    this.JWTKeyPairs[n].encodeU8Array(encoder);
                 }
             }
 
@@ -6448,7 +7218,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x5a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -6460,7 +7230,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x62);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -6468,15 +7238,23 @@ export namespace types {
         } // encode CertAuthoritySpecV2
     } // CertAuthoritySpecV2
 
+    /**
+     * SigningAlg is the algorithm used for signing new SSH certificates using
+     *  SigningKeys.
+     */
     export enum CertAuthoritySpecV2_SigningAlgType {
         UNKNOWN = 0,
         RSA_SHA1 = 1,
         RSA_SHA2_256 = 2,
         RSA_SHA2_512 = 3,
     } // CertAuthoritySpecV2_SigningAlgType
+    // CAKeySet is the set of CA keys.
     export class CAKeySet {
+        // SSH contains SSH CA key pairs.
         public SSH: Array<types.SSHKeyPair> = new Array<types.SSHKeyPair>();
+        // TLS contains TLS CA key/cert pairs.
         public TLS: Array<types.TLSKeyPair> = new Array<types.TLSKeyPair>();
+        // JWT contains JWT signing key pairs.
         public JWT: Array<types.JWTKeyPair> = new Array<types.JWTKeyPair>();
 
         // Decodes CAKeySet from an ArrayBuffer
@@ -6582,8 +7360,8 @@ export namespace types {
         }
 
         // Encodes CAKeySet to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -6592,7 +7370,7 @@ export namespace types {
         }
 
         // Encodes CAKeySet to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -6603,7 +7381,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.SSH[n].encode(encoder);
+                    this.SSH[n].encodeU8Array(encoder);
                 }
             }
 
@@ -6613,7 +7391,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    this.TLS[n].encode(encoder);
+                    this.TLS[n].encodeU8Array(encoder);
                 }
             }
 
@@ -6623,7 +7401,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    this.JWT[n].encode(encoder);
+                    this.JWT[n].encodeU8Array(encoder);
                 }
             }
 
@@ -6631,8 +7409,14 @@ export namespace types {
         } // encode CAKeySet
     } // CAKeySet
 
+    /**
+     * RoleMapping provides mapping of remote roles to local roles
+     *  for trusted clusters
+     */
     export class RoleMapping {
+        // Remote specifies remote role name to map from
         public Remote: string = "";
+        // Local specifies local roles to map to
         public Local: Array<string> = new Array<string>();
 
         // Decodes RoleMapping from an ArrayBuffer
@@ -6683,8 +7467,8 @@ export namespace types {
         }
 
         // Encodes RoleMapping to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -6693,7 +7477,7 @@ export namespace types {
         }
 
         // Encodes RoleMapping to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -6716,10 +7500,21 @@ export namespace types {
         } // encode RoleMapping
     } // RoleMapping
 
+    // ProvisionTokenV1 is a provisioning token V1
     export class ProvisionTokenV1 {
+        /**
+         * Roles is a list of roles associated with the token,
+         *  that will be converted to metadata in the SSH and X509
+         *  certificates issued to the user of the token
+         */
         public Roles: Array<string> = new Array<string>();
+        /**
+         * Expires is a global expiry time header can be set on any resource in the
+         *  system.
+         */
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // Token is a token name
         public Token: string = "";
 
         // Decodes ProvisionTokenV1 from an ArrayBuffer
@@ -6794,8 +7589,8 @@ export namespace types {
         }
 
         // Encodes ProvisionTokenV1 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -6804,7 +7599,7 @@ export namespace types {
         }
 
         // Encodes ProvisionTokenV1 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -6825,7 +7620,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -6839,11 +7634,17 @@ export namespace types {
         } // encode ProvisionTokenV1
     } // ProvisionTokenV1
 
+    // ProvisionTokenV2 specifies provisioning token
     export class ProvisionTokenV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a provisioning token V2 spec
         public Spec: types.ProvisionTokenSpecV2 =
             new types.ProvisionTokenSpecV2();
 
@@ -6956,8 +7757,8 @@ export namespace types {
         }
 
         // Encodes ProvisionTokenV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -6966,7 +7767,7 @@ export namespace types {
         }
 
         // Encodes ProvisionTokenV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -6995,7 +7796,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -7007,7 +7808,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -7015,7 +7816,9 @@ export namespace types {
         } // encode ProvisionTokenV2
     } // ProvisionTokenV2
 
+    // ProvisionTokenV2List is a list of provisioning tokens.
     export class ProvisionTokenV2List {
+        // ProvisionTokens is a list of provisioning tokens.
         public ProvisionTokens: Array<types.ProvisionTokenV2> =
             new Array<types.ProvisionTokenV2>();
 
@@ -7074,8 +7877,8 @@ export namespace types {
         }
 
         // Encodes ProvisionTokenV2List to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -7084,7 +7887,7 @@ export namespace types {
         }
 
         // Encodes ProvisionTokenV2List to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -7095,7 +7898,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.ProvisionTokens[n].encode(encoder);
+                    this.ProvisionTokens[n].encodeU8Array(encoder);
                 }
             }
 
@@ -7103,10 +7906,28 @@ export namespace types {
         } // encode ProvisionTokenV2List
     } // ProvisionTokenV2List
 
+    /**
+     * TokenRule is a rule that a joining node must match in order to use the
+     *  associated token.
+     */
     export class TokenRule {
+        // AWSAccount is the AWS account ID.
         public AWSAccount: string = "";
+        /**
+         * AWSRegions is used for the EC2 join method and is a list of AWS regions a
+         *  node is allowed to join from.
+         */
         public AWSRegions: Array<string> = new Array<string>();
+        /**
+         * AWSRole is used for the EC2 join method and is the the ARN of the AWS
+         *  role that the auth server will assume in order to call the ec2 API.
+         */
         public AWSRole: string = "";
+        /**
+         * AWSARN is used for the IAM join method, the AWS identity of joining nodes
+         *  must match this ARN. Supports wildcards "*" and "?".
+         */
+        public AWSARN: string = "";
 
         // Decodes TokenRule from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): TokenRule {
@@ -7133,6 +7954,10 @@ export namespace types {
                     }
                     case 3: {
                         obj.AWSRole = decoder.string();
+                        break;
+                    }
+                    case 4: {
+                        obj.AWSARN = decoder.string();
                         break;
                     }
 
@@ -7162,13 +7987,19 @@ export namespace types {
                       __proto.Sizer.varint64(this.AWSRole.length) +
                       this.AWSRole.length
                     : 0;
+            size +=
+                this.AWSARN.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.AWSARN.length) +
+                      this.AWSARN.length
+                    : 0;
 
             return size;
         }
 
         // Encodes TokenRule to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -7177,7 +8008,7 @@ export namespace types {
         }
 
         // Encodes TokenRule to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -7201,15 +8032,39 @@ export namespace types {
                 encoder.uint32(this.AWSRole.length);
                 encoder.string(this.AWSRole);
             }
+            if (this.AWSARN.length > 0) {
+                encoder.uint32(0x22);
+                encoder.uint32(this.AWSARN.length);
+                encoder.string(this.AWSARN);
+            }
 
             return buf;
         } // encode TokenRule
     } // TokenRule
 
+    // ProvisionTokenSpecV2 is a specification for V2 token
     export class ProvisionTokenSpecV2 {
+        /**
+         * Roles is a list of roles associated with the token,
+         *  that will be converted to metadata in the SSH and X509
+         *  certificates issued to the user of the token
+         */
         public Roles: Array<string> = new Array<string>();
-        public allow: Array<types.TokenRule> = new Array<types.TokenRule>();
+        /**
+         * Allow is a list of TokenRules, nodes using this token must match one
+         *  allow rule to use this token.
+         */
+        public Allow: Array<types.TokenRule> = new Array<types.TokenRule>();
+        /**
+         * AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used
+         *  to join the cluster with this token.
+         */
         public AWSIIDTTL: i64;
+        /**
+         * JoinMethod is the joining method required in order to use this token.
+         *  Supported joining methods include "token", "ec2", and "iam".
+         */
+        public JoinMethod: string = "";
 
         // Decodes ProvisionTokenSpecV2 from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): ProvisionTokenSpecV2 {
@@ -7232,7 +8087,7 @@ export namespace types {
                     }
                     case 2: {
                         const length = decoder.uint32();
-                        obj.allow.push(
+                        obj.Allow.push(
                             types.TokenRule.decode(
                                 new DataView(
                                     decoder.view.buffer,
@@ -7249,6 +8104,10 @@ export namespace types {
                         obj.AWSIIDTTL = decoder.int64();
                         break;
                     }
+                    case 4: {
+                        obj.JoinMethod = decoder.string();
+                        break;
+                    }
 
                     default:
                         decoder.skipType(tag & 7);
@@ -7263,8 +8122,8 @@ export namespace types {
 
             size += __size_string_repeated(this.Roles);
 
-            for (let n: i32 = 0; n < this.allow.length; n++) {
-                const messageSize = this.allow[n].size();
+            for (let n: i32 = 0; n < this.Allow.length; n++) {
+                const messageSize = this.Allow[n].size();
 
                 if (messageSize > 0) {
                     size +=
@@ -7276,13 +8135,19 @@ export namespace types {
                 this.AWSIIDTTL == 0
                     ? 0
                     : 1 + __proto.Sizer.int64(this.AWSIIDTTL);
+            size +=
+                this.JoinMethod.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.JoinMethod.length) +
+                      this.JoinMethod.length
+                    : 0;
 
             return size;
         }
 
         // Encodes ProvisionTokenSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -7291,7 +8156,7 @@ export namespace types {
         }
 
         // Encodes ProvisionTokenSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -7304,13 +8169,13 @@ export namespace types {
                 }
             }
 
-            for (let n: i32 = 0; n < this.allow.length; n++) {
-                const messageSize = this.allow[n].size();
+            for (let n: i32 = 0; n < this.Allow.length; n++) {
+                const messageSize = this.Allow[n].size();
 
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    this.allow[n].encode(encoder);
+                    this.Allow[n].encodeU8Array(encoder);
                 }
             }
 
@@ -7318,16 +8183,27 @@ export namespace types {
                 encoder.uint32(0x18);
                 encoder.int64(this.AWSIIDTTL);
             }
+            if (this.JoinMethod.length > 0) {
+                encoder.uint32(0x22);
+                encoder.uint32(this.JoinMethod.length);
+                encoder.string(this.JoinMethod);
+            }
 
             return buf;
         } // encode ProvisionTokenSpecV2
     } // ProvisionTokenSpecV2
 
+    // StaticTokensV2 implements the StaticTokens interface.
     export class StaticTokensV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a provisioning token V2 spec
         public Spec: types.StaticTokensSpecV2 = new types.StaticTokensSpecV2();
 
         // Decodes StaticTokensV2 from an ArrayBuffer
@@ -7439,8 +8315,8 @@ export namespace types {
         }
 
         // Encodes StaticTokensV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -7449,7 +8325,7 @@ export namespace types {
         }
 
         // Encodes StaticTokensV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -7478,7 +8354,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -7490,7 +8366,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -7498,7 +8374,12 @@ export namespace types {
         } // encode StaticTokensV2
     } // StaticTokensV2
 
+    // StaticTokensSpecV2 is the actual data we care about for StaticTokensSpecV2.
     export class StaticTokensSpecV2 {
+        /**
+         * StaticTokens is a list of tokens that can be used to add nodes to the
+         *  cluster.
+         */
         public StaticTokens: Array<types.ProvisionTokenV1> =
             new Array<types.ProvisionTokenV1>();
 
@@ -7557,8 +8438,8 @@ export namespace types {
         }
 
         // Encodes StaticTokensSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -7567,7 +8448,7 @@ export namespace types {
         }
 
         // Encodes StaticTokensSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -7578,7 +8459,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.StaticTokens[n].encode(encoder);
+                    this.StaticTokens[n].encodeU8Array(encoder);
                 }
             }
 
@@ -7586,11 +8467,17 @@ export namespace types {
         } // encode StaticTokensSpecV2
     } // StaticTokensSpecV2
 
+    // ClusterNameV2 implements the ClusterName interface.
     export class ClusterNameV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a cluster name V2 spec
         public Spec: types.ClusterNameSpecV2 = new types.ClusterNameSpecV2();
 
         // Decodes ClusterNameV2 from an ArrayBuffer
@@ -7702,8 +8589,8 @@ export namespace types {
         }
 
         // Encodes ClusterNameV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -7712,7 +8599,7 @@ export namespace types {
         }
 
         // Encodes ClusterNameV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -7741,7 +8628,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -7753,7 +8640,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -7761,8 +8648,17 @@ export namespace types {
         } // encode ClusterNameV2
     } // ClusterNameV2
 
+    // ClusterNameSpecV2 is the actual data we care about for ClusterName.
     export class ClusterNameSpecV2 {
+        /**
+         * ClusterName is the name of the cluster. Changing this value once the
+         *  cluster is setup can and will cause catastrophic problems.
+         */
         public ClusterName: string = "";
+        /**
+         * ClusterID is the unique cluster ID that is set once during the first
+         *  auth server startup.
+         */
         public ClusterID: string = "";
 
         // Decodes ClusterNameSpecV2 from an ArrayBuffer
@@ -7817,8 +8713,8 @@ export namespace types {
         }
 
         // Encodes ClusterNameSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -7827,7 +8723,7 @@ export namespace types {
         }
 
         // Encodes ClusterNameSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -7847,11 +8743,17 @@ export namespace types {
         } // encode ClusterNameSpecV2
     } // ClusterNameSpecV2
 
+    // ClusterAuditConfigV2 represents audit log settings in the cluster.
     export class ClusterAuditConfigV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is a resource version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a ClusterAuditConfig specification
         public Spec: types.ClusterAuditConfigSpecV2 =
             new types.ClusterAuditConfigSpecV2();
 
@@ -7964,8 +8866,8 @@ export namespace types {
         }
 
         // Encodes ClusterAuditConfigV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -7974,7 +8876,7 @@ export namespace types {
         }
 
         // Encodes ClusterAuditConfigV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -8003,7 +8905,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -8015,7 +8917,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -8023,20 +8925,41 @@ export namespace types {
         } // encode ClusterAuditConfigV2
     } // ClusterAuditConfigV2
 
+    /**
+     * ClusterAuditConfigSpecV2 is the actual data we care about
+     *  for ClusterAuditConfig.
+     */
     export class ClusterAuditConfigSpecV2 {
+        // Type is audit backend type
         public Type: string = "";
+        // Region is a region setting for audit sessions used by cloud providers
         public Region: string = "";
+        // AuditSessionsURI is a parameter where to upload sessions
         public AuditSessionsURI: string = "";
+        /**
+         * AuditEventsURI is a parameter with all supported outputs
+         *  for audit events
+         */
         public AuditEventsURI: wrappers.StringValues =
             new wrappers.StringValues();
+        // EnableContinuousBackups is used to enable (or disable) PITR (Point-In-Time Recovery).
         public EnableContinuousBackups: bool;
+        // EnableAutoScaling is used to enable (or disable) auto scaling policy.
         public EnableAutoScaling: bool;
+        // ReadMaxCapacity is the maximum provisioned read capacity.
         public ReadMaxCapacity: i64;
+        // ReadMinCapacity is the minimum provisioned read capacity.
         public ReadMinCapacity: i64;
+        // ReadTargetValue is the ratio of consumed read to provisioned capacity.
         public ReadTargetValue: f64;
+        // WriteMaxCapacity is the maximum provisioned write capacity.
         public WriteMaxCapacity: i64;
+        // WriteMinCapacity is the minimum provisioned write capacity.
         public WriteMinCapacity: i64;
+        // WriteTargetValue is the ratio of consumed write to provisioned capacity.
         public WriteTargetValue: f64;
+        // RetentionPeriod is the retention period for audit events.
+        public RetentionPeriod: i64;
 
         // Decodes ClusterAuditConfigSpecV2 from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): ClusterAuditConfigSpecV2 {
@@ -8110,6 +9033,10 @@ export namespace types {
                         obj.WriteTargetValue = decoder.double();
                         break;
                     }
+                    case 14: {
+                        obj.RetentionPeriod = decoder.int64();
+                        break;
+                    }
 
                     default:
                         decoder.skipType(tag & 7);
@@ -8172,13 +9099,17 @@ export namespace types {
                     ? 0
                     : 1 + __proto.Sizer.int64(this.WriteMinCapacity);
             size += this.WriteTargetValue == 0 ? 0 : 1 + 8;
+            size +=
+                this.RetentionPeriod == 0
+                    ? 0
+                    : 1 + __proto.Sizer.int64(this.RetentionPeriod);
 
             return size;
         }
 
         // Encodes ClusterAuditConfigSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -8187,7 +9118,7 @@ export namespace types {
         }
 
         // Encodes ClusterAuditConfigSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -8216,7 +9147,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -8252,16 +9183,26 @@ export namespace types {
                 encoder.uint32(0x69);
                 encoder.double(this.WriteTargetValue);
             }
+            if (this.RetentionPeriod != 0) {
+                encoder.uint32(0x70);
+                encoder.int64(this.RetentionPeriod);
+            }
 
             return buf;
         } // encode ClusterAuditConfigSpecV2
     } // ClusterAuditConfigSpecV2
 
+    // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
     export class ClusterNetworkingConfigV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is a resource version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a ClusterNetworkingConfig specification
         public Spec: types.ClusterNetworkingConfigSpecV2 =
             new types.ClusterNetworkingConfigSpecV2();
 
@@ -8374,8 +9315,8 @@ export namespace types {
         }
 
         // Encodes ClusterNetworkingConfigV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -8384,7 +9325,7 @@ export namespace types {
         }
 
         // Encodes ClusterNetworkingConfigV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -8413,7 +9354,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -8425,7 +9366,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -8433,14 +9374,42 @@ export namespace types {
         } // encode ClusterNetworkingConfigV2
     } // ClusterNetworkingConfigV2
 
+    /**
+     * ClusterNetworkingConfigSpecV2 is the actual data we care about
+     *  for ClusterNetworkingConfig.
+     */
     export class ClusterNetworkingConfigSpecV2 {
+        /**
+         * ClientIdleTimeout sets global cluster default setting for client idle
+         *  timeouts.
+         */
         public ClientIdleTimeout: i64;
+        /**
+         * KeepAliveInterval is the interval at which the server sends keep-alive messages
+         *  to the client.
+         */
         public KeepAliveInterval: i64;
+        /**
+         * KeepAliveCountMax is the number of keep-alive messages that can be
+         *  missed before the server disconnects the connection to the client.
+         */
         public KeepAliveCountMax: i64;
+        /**
+         * SessionControlTimeout is the session control lease expiry and defines
+         *  the upper limit of how long a node may be out of contact with the auth
+         *  server before it begins terminating controlled sessions.
+         */
         public SessionControlTimeout: i64;
+        // ClientIdleTimeoutMessage is the message sent to the user when a connection times out.
         public ClientIdleTimeoutMessage: string = "";
+        /**
+         * WebIdleTimeout sets global cluster default setting for the web UI idle
+         *  timeouts.
+         */
         public WebIdleTimeout: i64;
+        // ProxyListenerMode is proxy listener mode used by Teleport Proxies.
         public ProxyListenerMode: u32;
+        // RoutingStrategy determines the strategy used to route to nodes.
         public RoutingStrategy: u32;
 
         // Decodes ClusterNetworkingConfigSpecV2 from an ArrayBuffer
@@ -8545,8 +9514,8 @@ export namespace types {
         }
 
         // Encodes ClusterNetworkingConfigSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -8555,7 +9524,7 @@ export namespace types {
         }
 
         // Encodes ClusterNetworkingConfigSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -8598,11 +9567,17 @@ export namespace types {
         } // encode ClusterNetworkingConfigSpecV2
     } // ClusterNetworkingConfigSpecV2
 
+    // SessionRecordingConfigV2 contains session recording configuration.
     export class SessionRecordingConfigV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is a resource version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a SessionRecordingConfig specification
         public Spec: types.SessionRecordingConfigSpecV2 =
             new types.SessionRecordingConfigSpecV2();
 
@@ -8715,8 +9690,8 @@ export namespace types {
         }
 
         // Encodes SessionRecordingConfigV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -8725,7 +9700,7 @@ export namespace types {
         }
 
         // Encodes SessionRecordingConfigV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -8754,7 +9729,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -8766,7 +9741,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -8774,8 +9749,17 @@ export namespace types {
         } // encode SessionRecordingConfigV2
     } // SessionRecordingConfigV2
 
+    /**
+     * SessionRecordingConfigSpecV2 is the actual data we care about
+     *  for SessionRecordingConfig.
+     */
     export class SessionRecordingConfigSpecV2 {
+        // Mode controls where (or if) the session is recorded.
         public Mode: string = "";
+        /**
+         * ProxyChecksHostKeys is used to control if the proxy will check host keys
+         *  when in recording mode.
+         */
         public ProxyChecksHostKeys: types.BoolValue = new types.BoolValue();
 
         // Decodes SessionRecordingConfigSpecV2 from an ArrayBuffer
@@ -8846,8 +9830,8 @@ export namespace types {
         }
 
         // Encodes SessionRecordingConfigSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -8856,7 +9840,7 @@ export namespace types {
         }
 
         // Encodes SessionRecordingConfigSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -8875,7 +9859,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -8883,11 +9867,17 @@ export namespace types {
         } // encode SessionRecordingConfigSpecV2
     } // SessionRecordingConfigSpecV2
 
+    // AuthPreferenceV2 implements the AuthPreference interface.
     export class AuthPreferenceV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is a resource version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is an AuthPreference specification
         public Spec: types.AuthPreferenceSpecV2 =
             new types.AuthPreferenceSpecV2();
 
@@ -9000,8 +9990,8 @@ export namespace types {
         }
 
         // Encodes AuthPreferenceV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -9010,7 +10000,7 @@ export namespace types {
         }
 
         // Encodes AuthPreferenceV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -9039,7 +10029,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -9051,7 +10041,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -9059,16 +10049,35 @@ export namespace types {
         } // encode AuthPreferenceV2
     } // AuthPreferenceV2
 
+    // AuthPreferenceSpecV2 is the actual data we care about for AuthPreference.
     export class AuthPreferenceSpecV2 {
+        // Type is the type of authentication.
         public Type: string = "";
+        // SecondFactor is the type of second factor.
         public SecondFactor: string = "";
+        /**
+         * ConnectorName is the name of the OIDC or SAML connector. If this value is
+         *  not set the first connector in the backend will be used.
+         */
         public ConnectorName: string = "";
+        // U2F are the settings for the U2F device.
         public U2F: types.U2F = new types.U2F();
+        /**
+         * RequireSessionMFA causes all sessions in this cluster to require MFA
+         *  checks.
+         */
         public RequireSessionMFA: bool;
+        /**
+         * DisconnectExpiredCert provides disconnect expired certificate setting -
+         *  if true, connections with expired client certificates will get disconnected
+         */
         public DisconnectExpiredCert: types.BoolValue = new types.BoolValue();
+        // AllowLocalAuth is true if local authentication is enabled.
         public AllowLocalAuth: types.BoolValue = new types.BoolValue();
         public MessageOfTheDay: string = "";
+        // LockingMode is the cluster-wide locking mode default.
         public LockingMode: string = "";
+        // Webauthn are the settings for server-side Web Authentication support.
         public Webauthn: types.Webauthn = new types.Webauthn();
 
         // Decodes AuthPreferenceSpecV2 from an ArrayBuffer
@@ -9254,8 +10263,8 @@ export namespace types {
         }
 
         // Encodes AuthPreferenceSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -9264,7 +10273,7 @@ export namespace types {
         }
 
         // Encodes AuthPreferenceSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -9293,7 +10302,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -9310,7 +10319,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -9322,7 +10331,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -9345,7 +10354,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -9353,9 +10362,16 @@ export namespace types {
         } // encode AuthPreferenceSpecV2
     } // AuthPreferenceSpecV2
 
+    // U2F defines settings for U2F device.
     export class U2F {
+        // AppID returns the application ID for universal second factor.
         public AppID: string = "";
+        // Facets returns the facets for universal second factor.
         public Facets: Array<string> = new Array<string>();
+        /**
+         * DeviceAttestationCAs contains the trusted attestation CAs for U2F
+         *  devices.
+         */
         public DeviceAttestationCAs: Array<string> = new Array<string>();
 
         // Decodes U2F from an ArrayBuffer
@@ -9412,8 +10428,8 @@ export namespace types {
         }
 
         // Encodes U2F to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -9422,7 +10438,7 @@ export namespace types {
         }
 
         // Encodes U2F to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -9457,10 +10473,53 @@ export namespace types {
         } // encode U2F
     } // U2F
 
+    /**
+     * Webauthn defines user-visible settings for server-side Web Authentication
+     *  support.
+     */
     export class Webauthn {
+        /**
+         * RPID is the ID of the Relying Party.
+         *  It should be set to the domain name of the Teleport installation.
+         *
+         *  IMPORTANT: RPID must never change in the lifetime of the cluster, because
+         *  it's recorded in the registration data on the WebAuthn device. If the
+         *  RPID changes, all existing WebAuthn key registrations will become invalid
+         *  and all users who use WebAuthn as the second factor will need to
+         *  re-register.
+         */
         public RPID: string = "";
+        /**
+         * Allow list of device attestation CAs in PEM format.
+         *  If present, only devices whose attestation certificates match the
+         *  certificates specified here may be registered (existing registrations are
+         *  unchanged).
+         *  If supplied in conjunction with AttestationDeniedCAs, then both
+         *  conditions need to be true for registration to be allowed (the device
+         *  MUST match an allowed CA and MUST NOT match a denied CA).
+         *  By default all devices are allowed.
+         */
         public AttestationAllowedCAs: Array<string> = new Array<string>();
+        /**
+         * Deny list of device attestation CAs in PEM format.
+         *  If present, only devices whose attestation certificates don't match the
+         *  certificates specified here may be registered (existing registrations are
+         *  unchanged).
+         *  If supplied in conjunction with AttestationAllowedCAs, then both
+         *  conditions need to be true for registration to be allowed (the device
+         *  MUST match an allowed CA and MUST NOT match a denied CA).
+         *  By default no devices are denied.
+         */
         public AttestationDeniedCAs: Array<string> = new Array<string>();
+        /**
+         * Disables Webauthn, regardless of other cluster settings.
+         *  Allows fallback to pure U2F in clusters with second_factor:on or
+         *  second_factor:optional.
+         *  Must not be set for clusters with second_factor:webauthn.
+         *  Temporary safety switch for Webauthn, to be removed in future versions of
+         *  Teleport.
+         *  DELETE IN 9.x, fallback not possible without U2F (codingllama).
+         */
         public Disabled: bool;
 
         // Decodes Webauthn from an ArrayBuffer
@@ -9523,8 +10582,8 @@ export namespace types {
         }
 
         // Encodes Webauthn to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -9533,7 +10592,7 @@ export namespace types {
         }
 
         // Encodes Webauthn to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -9577,11 +10636,17 @@ export namespace types {
         } // encode Webauthn
     } // Webauthn
 
+    // Namespace represents namespace resource specification
     export class Namespace {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a namespace spec
         public Spec: types.NamespaceSpec = new types.NamespaceSpec();
 
         // Decodes Namespace from an ArrayBuffer
@@ -9692,8 +10757,8 @@ export namespace types {
         }
 
         // Encodes Namespace to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -9702,7 +10767,7 @@ export namespace types {
         }
 
         // Encodes Namespace to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -9731,7 +10796,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -9743,7 +10808,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -9751,6 +10816,7 @@ export namespace types {
         } // encode Namespace
     } // Namespace
 
+    // NamespaceSpec is a namespace specificateion
     export class NamespaceSpec {
         // Decodes NamespaceSpec from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): NamespaceSpec {
@@ -9782,8 +10848,8 @@ export namespace types {
         }
 
         // Encodes NamespaceSpec to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -9792,7 +10858,7 @@ export namespace types {
         }
 
         // Encodes NamespaceSpec to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -9802,10 +10868,15 @@ export namespace types {
     } // NamespaceSpec
 
     export class UserTokenV3 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is a resource sub kind, used to define the type of user token.
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is an resource specification
         public Spec: types.UserTokenSpecV3 = new types.UserTokenSpecV3();
 
         // Decodes UserTokenV3 from an ArrayBuffer
@@ -9917,8 +10988,8 @@ export namespace types {
         }
 
         // Encodes UserTokenV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -9927,7 +10998,7 @@ export namespace types {
         }
 
         // Encodes UserTokenV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -9956,7 +11027,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -9968,7 +11039,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -9977,9 +11048,13 @@ export namespace types {
     } // UserTokenV3
 
     export class UserTokenSpecV3 {
+        // User is user name associated with this token
         public User: string = "";
+        // URL is this token URL
         public URL: string = "";
+        // Usage is an optional field that provides more information about how this token will be used.
         public Usage: u32;
+        // Created holds information about when the token was created
         public Created: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
 
@@ -10064,8 +11139,8 @@ export namespace types {
         }
 
         // Encodes UserTokenSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -10074,7 +11149,7 @@ export namespace types {
         }
 
         // Encodes UserTokenSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -10102,7 +11177,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -10111,10 +11186,15 @@ export namespace types {
     } // UserTokenSpecV3
 
     export class UserTokenSecretsV3 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is an resource specification
         public Spec: types.UserTokenSecretsSpecV3 =
             new types.UserTokenSecretsSpecV3();
 
@@ -10227,8 +11307,8 @@ export namespace types {
         }
 
         // Encodes UserTokenSecretsV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -10237,7 +11317,7 @@ export namespace types {
         }
 
         // Encodes UserTokenSecretsV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -10266,7 +11346,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -10278,7 +11358,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -10287,8 +11367,11 @@ export namespace types {
     } // UserTokenSecretsV3
 
     export class UserTokenSecretsSpecV3 {
+        // OTPKey is is a secret value of one time password secret generator
         public OTPKey: string = "";
+        // OTPKey is is a secret value of one time password secret generator
         public QRCode: string = "";
+        // Created holds information about when the token was created
         public Created: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
 
@@ -10368,8 +11451,8 @@ export namespace types {
         }
 
         // Encodes UserTokenSecretsSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -10378,7 +11461,7 @@ export namespace types {
         }
 
         // Encodes UserTokenSecretsSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -10402,7 +11485,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -10410,11 +11493,17 @@ export namespace types {
         } // encode UserTokenSecretsSpecV3
     } // UserTokenSecretsSpecV3
 
+    // AccessRequest represents an access request resource specification
     export class AccessRequestV3 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is AccessRequest metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is an AccessRequest specification
         public Spec: types.AccessRequestSpecV3 =
             new types.AccessRequestSpecV3();
 
@@ -10527,8 +11616,8 @@ export namespace types {
         }
 
         // Encodes AccessRequestV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -10537,7 +11626,7 @@ export namespace types {
         }
 
         // Encodes AccessRequestV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -10566,7 +11655,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -10578,7 +11667,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -10586,10 +11675,23 @@ export namespace types {
         } // encode AccessRequestV3
     } // AccessRequestV3
 
+    /**
+     * AccessReviewThreshold describes a filter used to match access reviews,
+     *  as well as approval/denial counts which trigger state-transitions.  This type
+     *  can be used to describe policies such as "can be approved by 2 admins"
+     *  or "can be denied by any non-contractor".
+     */
     export class AccessReviewThreshold {
+        // Name is the optional human-readable name of the threshold.
         public Name: string = "";
+        /**
+         * Filter is an optional predicate used to determine which reviews
+         *  count toward this threshold.
+         */
         public Filter: string = "";
+        // Approve is the number of matching approvals needed for state-transition.
         public Approve: u32;
+        // Deny is the number of denials needed for state-transition.
         public Deny: u32;
 
         // Decodes AccessReviewThreshold from an ArrayBuffer
@@ -10655,8 +11757,8 @@ export namespace types {
         }
 
         // Encodes AccessReviewThreshold to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -10665,7 +11767,7 @@ export namespace types {
         }
 
         // Encodes AccessReviewThreshold to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -10693,14 +11795,28 @@ export namespace types {
         } // encode AccessReviewThreshold
     } // AccessReviewThreshold
 
+    // AccessReview is a review to be applied to an access request.
     export class AccessReview {
+        // Author is the teleport username of the review author.
         public Author: string = "";
+        // Roles is a list used for role-subselection (not yet fully supported).
         public Roles: Array<string> = new Array<string>();
+        // ProposedState is the proposed state (must be APPROVED or DENIED).
         public ProposedState: u32;
+        /**
+         * Reason is an optional human-readable reason for why the above state
+         *  is being proposed.
+         */
         public Reason: string = "";
+        // Created is the time at which the review was created.
         public Created: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // Annotations is the proposed value of the request's resolve_annotations field.
         public Annotations: wrappers.LabelValues = new wrappers.LabelValues();
+        /**
+         * ThresholdIndexes stores the indexes of thresholds which this review matches
+         *  (internal use only).
+         */
         public ThresholdIndexes: Array<u32> = new Array<u32>();
 
         // Decodes AccessReview from an ArrayBuffer
@@ -10824,8 +11940,8 @@ export namespace types {
         }
 
         // Encodes AccessReview to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -10834,7 +11950,7 @@ export namespace types {
         }
 
         // Encodes AccessReview to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -10871,7 +11987,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -10883,7 +11999,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -10898,8 +12014,14 @@ export namespace types {
         } // encode AccessReview
     } // AccessReview
 
+    /**
+     * AccessReviewSubmission encodes the necessary parameters for submitting
+     *  a new access review.
+     */
     export class AccessReviewSubmission {
+        // RequestID is the unique ID of the request to be reviewed.
         public RequestID: string = "";
+        // Review is the review to be applied.
         public Review: types.AccessReview = new types.AccessReview();
 
         // Decodes AccessReviewSubmission from an ArrayBuffer
@@ -10967,8 +12089,8 @@ export namespace types {
         }
 
         // Encodes AccessReviewSubmission to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -10977,7 +12099,7 @@ export namespace types {
         }
 
         // Encodes AccessReviewSubmission to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -10996,7 +12118,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -11004,7 +12126,12 @@ export namespace types {
         } // encode AccessReviewSubmission
     } // AccessReviewSubmission
 
+    /**
+     * ThresholdIndexSet encodes a list of threshold indexes. One of the listed thresholds
+     *  must pass for the set to be considered to have passed (i.e. this is an `or` operator).
+     */
     export class ThresholdIndexSet {
+        // Indexes are the indexes of thresholds which relate to the role.
         public Indexes: Array<u32> = new Array<u32>();
 
         // Decodes ThresholdIndexSet from an ArrayBuffer
@@ -11044,8 +12171,8 @@ export namespace types {
         }
 
         // Encodes ThresholdIndexSet to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -11054,7 +12181,7 @@ export namespace types {
         }
 
         // Encodes ThresholdIndexSet to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -11070,7 +12197,12 @@ export namespace types {
         } // encode ThresholdIndexSet
     } // ThresholdIndexSet
 
+    /**
+     * ThresholdIndexSets is a list of threshold index sets.  Each of the individual
+     *  sets must pass (i.e. this is an `and` operator).
+     */
     export class ThresholdIndexSets {
+        // Sets are the sets that make up this group.
         public Sets: Array<types.ThresholdIndexSet> =
             new Array<types.ThresholdIndexSet>();
 
@@ -11129,8 +12261,8 @@ export namespace types {
         }
 
         // Encodes ThresholdIndexSets to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -11139,7 +12271,7 @@ export namespace types {
         }
 
         // Encodes ThresholdIndexSets to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -11150,7 +12282,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.Sets[n].encode(encoder);
+                    this.Sets[n].encodeU8Array(encoder);
                 }
             }
 
@@ -11158,26 +12290,75 @@ export namespace types {
         } // encode ThresholdIndexSets
     } // ThresholdIndexSets
 
+    // AccessRequestSpec is the specification for AccessRequest
     export class AccessRequestSpecV3 {
+        // User is the name of the user to whom the roles will be applied.
         public User: string = "";
+        // Roles is the name of the roles being requested.
         public Roles: Array<string> = new Array<string>();
+        // State is the current state of this access request.
         public State: u32;
+        /**
+         * Created encodes the time at which the request was registered with the auth
+         *  server.
+         */
         public Created: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        /**
+         * Expires constrains the maximum lifetime of any login session for which this
+         *  request is active.
+         */
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // RequestReason is an optional message explaining the reason for the request.
         public RequestReason: string = "";
+        /**
+         * ResolveReason is an optional message explaining the reason for the resolution
+         *  of the request (approval, denail, etc...).
+         */
         public ResolveReason: string = "";
+        /**
+         * ResolveAnnotations is a set of arbitrary values received from plugins or other
+         *  resolving parties during approval/denial.  Importantly, these annotations are
+         *  included in the access_request.update event, allowing plugins to propagate
+         *  arbitrary structured data to the audit log.
+         */
         public ResolveAnnotations: wrappers.LabelValues =
             new wrappers.LabelValues();
+        /**
+         * SystemAnnotations is a set of programmatically generated annotations attached
+         *  to pending access requests by teleport.  These annotations are generated by
+         *  applying variable interpolation to the RoleConditions.Request.Annotations block
+         *  of a user's role(s).  These annotations serve as a mechanism for administrators
+         *  to pass extra information to plugins when they process pending access requests.
+         */
         public SystemAnnotations: wrappers.LabelValues =
             new wrappers.LabelValues();
+        /**
+         * Thresholds is a list of review thresholds relevant to this request.  Order must be
+         *  preserved, as thresholds are referenced by index (internal use only).
+         */
         public Thresholds: Array<types.AccessReviewThreshold> =
             new Array<types.AccessReviewThreshold>();
+        /**
+         * RoleThresholdMapping encodes the relationship between the requested roles and
+         *  the review threshold requirements for the given role (internal use only).
+         *  By storing a representation of which thresholds must pass for each requested role, we
+         *  both eliminate the need to cache the requestor's roles directly, and allow future
+         *  versions of teleport to become smarter about calculating more granular requirements
+         *  in a backwards-compatible manner (i.e. calculation can become smarter in minor releases).
+         *  Storing this relationship on the request is necessary in order to avoid unexpected or
+         *  inconsistent behavior due to review submission timing.
+         */
         public RoleThresholdMapping: Map<string, types.ThresholdIndexSets> =
             new Map<string, types.ThresholdIndexSets>();
+        // Reviews is a list of reviews applied to this request (internal use only).
         public Reviews: Array<types.AccessReview> =
             new Array<types.AccessReview>();
+        /**
+         * SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but
+         *  that is not a requirement.
+         */
         public SuggestedReviewers: Array<string> = new Array<string>();
 
         // Decodes AccessRequestSpecV3 from an ArrayBuffer
@@ -11433,8 +12614,8 @@ export namespace types {
         }
 
         // Encodes AccessRequestSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -11443,7 +12624,7 @@ export namespace types {
         }
 
         // Encodes AccessRequestSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -11475,7 +12656,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -11487,7 +12668,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -11510,7 +12691,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -11522,7 +12703,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x4a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -11532,7 +12713,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    this.Thresholds[n].encode(encoder);
+                    this.Thresholds[n].encodeU8Array(encoder);
                 }
             }
 
@@ -11559,7 +12740,7 @@ export namespace types {
                         if (messageSize > 0) {
                             encoder.uint32(0x12);
                             encoder.uint32(messageSize);
-                            value.encode(encoder);
+                            value.encodeU8Array(encoder);
                         }
                     }
                 }
@@ -11571,7 +12752,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x62);
                     encoder.uint32(messageSize);
-                    this.Reviews[n].encode(encoder);
+                    this.Reviews[n].encodeU8Array(encoder);
                 }
             }
 
@@ -11587,9 +12768,13 @@ export namespace types {
         } // encode AccessRequestSpecV3
     } // AccessRequestSpecV3
 
+    // AccessRequestFilter encodes filter params for access requests.
     export class AccessRequestFilter {
+        // ID specifies a request ID if set.
         public ID: string = "";
+        // User specifies a username if set.
         public User: string = "";
+        // RequestState filters for requests in a specific state.
         public State: u32;
 
         // Decodes AccessRequestFilter from an ArrayBuffer
@@ -11649,8 +12834,8 @@ export namespace types {
         }
 
         // Encodes AccessRequestFilter to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -11659,7 +12844,7 @@ export namespace types {
         }
 
         // Encodes AccessRequestFilter to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -11683,8 +12868,15 @@ export namespace types {
         } // encode AccessRequestFilter
     } // AccessRequestFilter
 
+    /**
+     * AccessCapabilities is a summary of capabilities that a user
+     *  is granted via their dynamic access privileges which may not be
+     *  calculable by directly examining the user's own static roles.
+     */
     export class AccessCapabilities {
+        // RequestableRoles is a list of existent roles which the user is allowed to request.
         public RequestableRoles: Array<string> = new Array<string>();
+        // SuggestedReviewers is a list of all reviewers which are suggested by the user's roles.
         public SuggestedReviewers: Array<string> = new Array<string>();
 
         // Decodes AccessCapabilities from an ArrayBuffer
@@ -11730,8 +12922,8 @@ export namespace types {
         }
 
         // Encodes AccessCapabilities to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -11740,7 +12932,7 @@ export namespace types {
         }
 
         // Encodes AccessCapabilities to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -11765,9 +12957,22 @@ export namespace types {
         } // encode AccessCapabilities
     } // AccessCapabilities
 
+    // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
     export class AccessCapabilitiesRequest {
+        /**
+         * User is the name of the user whose capabilities we are interested in (defaults to
+         *  the caller's own username).
+         */
         public User: string = "";
+        /**
+         * RequestableRoles is a flag indicating that we would like to view the list of roles
+         *  that the user is able to request.
+         */
         public RequestableRoles: bool;
+        /**
+         * SuggestedReviewers is a flag indicating that we would like to view the list of all
+         *  reviewers which are suggested by the user's roles.
+         */
         public SuggestedReviewers: bool;
 
         // Decodes AccessCapabilitiesRequest from an ArrayBuffer
@@ -11822,8 +13027,8 @@ export namespace types {
         }
 
         // Encodes AccessCapabilitiesRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -11832,7 +13037,7 @@ export namespace types {
         }
 
         // Encodes AccessCapabilitiesRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -11855,11 +13060,17 @@ export namespace types {
         } // encode AccessCapabilitiesRequest
     } // AccessCapabilitiesRequest
 
+    // PluginData stores a collection of values associated with a specific resource.
     export class PluginDataV3 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is PluginData metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a PluginData specification
         public Spec: types.PluginDataSpecV3 = new types.PluginDataSpecV3();
 
         // Decodes PluginDataV3 from an ArrayBuffer
@@ -11971,8 +13182,8 @@ export namespace types {
         }
 
         // Encodes PluginDataV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -11981,7 +13192,7 @@ export namespace types {
         }
 
         // Encodes PluginDataV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -12010,7 +13221,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -12022,7 +13233,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -12030,7 +13241,12 @@ export namespace types {
         } // encode PluginDataV3
     } // PluginDataV3
 
+    /**
+     * PluginDataEntry wraps a mapping of arbitrary string values used by
+     *  plugins to store per-resource information.
+     */
     export class PluginDataEntry {
+        // Data is a mapping of arbitrary string values.
         public Data: Map<string, string> = new Map<string, string>();
 
         // Decodes PluginDataEntry from an ArrayBuffer
@@ -12084,8 +13300,8 @@ export namespace types {
         }
 
         // Encodes PluginDataEntry to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -12094,7 +13310,7 @@ export namespace types {
         }
 
         // Encodes PluginDataEntry to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -12126,7 +13342,9 @@ export namespace types {
         } // encode PluginDataEntry
     } // PluginDataEntry
 
+    // PluginData stores a collection of values associated with a specific resource.
     export class PluginDataSpecV3 {
+        // Entries is a collection of PluginData values organized by plugin name.
         public Entries: Map<string, types.PluginDataEntry> = new Map<
             string,
             types.PluginDataEntry
@@ -12188,8 +13406,8 @@ export namespace types {
         }
 
         // Encodes PluginDataSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -12198,7 +13416,7 @@ export namespace types {
         }
 
         // Encodes PluginDataSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -12226,7 +13444,7 @@ export namespace types {
                         if (messageSize > 0) {
                             encoder.uint32(0x12);
                             encoder.uint32(messageSize);
-                            value.encode(encoder);
+                            value.encodeU8Array(encoder);
                         }
                     }
                 }
@@ -12236,9 +13454,22 @@ export namespace types {
         } // encode PluginDataSpecV3
     } // PluginDataSpecV3
 
+    /**
+     * NOTE: PluginDataFilter and PluginDataUpdateParams currently only target AccessRequest resources
+     *  since those are the only resources currently managed via plugin.  Support for additional resource
+     *  kinds may be added in a backwards-compatible manner by adding a `Kind` field which defaults
+     *  to `access_request` if unspecified.
+     *  PluginDataFilter encodes filter params for plugin data.
+     */
     export class PluginDataFilter {
+        /**
+         * Kind is the kind of resource that the target plugin data
+         *  is associated with.
+         */
         public Kind: string = "";
+        // Resource matches a specific resource name if set.
         public Resource: string = "";
+        // Plugin matches a specific plugin name if set.
         public Plugin: string = "";
 
         // Decodes PluginDataFilter from an ArrayBuffer
@@ -12303,8 +13534,8 @@ export namespace types {
         }
 
         // Encodes PluginDataFilter to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -12313,7 +13544,7 @@ export namespace types {
         }
 
         // Encodes PluginDataFilter to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -12338,11 +13569,20 @@ export namespace types {
         } // encode PluginDataFilter
     } // PluginDataFilter
 
+    // PluginDataUpdateParams encodes paramers for updating a PluginData field.
     export class PluginDataUpdateParams {
+        /**
+         * Kind is the kind of resource that the target plugin data
+         *  is associated with.
+         */
         public Kind: string = "";
+        // Resource indicates the name of the target resource.
         public Resource: string = "";
+        // Plugin is the name of the plugin that owns the data.
         public Plugin: string = "";
+        // Set indicates the fields which should be set by this operation.
         public Set: Map<string, string> = new Map<string, string>();
+        // Expect optionally indicates the expected state of fields prior to this update.
         public Expect: Map<string, string> = new Map<string, string>();
 
         // Decodes PluginDataUpdateParams from an ArrayBuffer
@@ -12447,8 +13687,8 @@ export namespace types {
         }
 
         // Encodes PluginDataUpdateParams to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -12457,7 +13697,7 @@ export namespace types {
         }
 
         // Encodes PluginDataUpdateParams to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -12528,11 +13768,17 @@ export namespace types {
         } // encode PluginDataUpdateParams
     } // PluginDataUpdateParams
 
+    // RoleV4 represents role resource specification
     export class RoleV4 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a role specification
         public Spec: types.RoleSpecV4 = new types.RoleSpecV4();
 
         // Decodes RoleV4 from an ArrayBuffer
@@ -12643,8 +13889,8 @@ export namespace types {
         }
 
         // Encodes RoleV4 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -12653,7 +13899,7 @@ export namespace types {
         }
 
         // Encodes RoleV4 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -12682,7 +13928,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -12694,7 +13940,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -12702,9 +13948,16 @@ export namespace types {
         } // encode RoleV4
     } // RoleV4
 
+    // RoleSpecV4 is role specification for RoleV4.
     export class RoleSpecV4 {
+        // Options is for OpenSSH options like agent forwarding.
         public Options: types.RoleOptions = new types.RoleOptions();
+        // Allow is the set of conditions evaluated to grant access.
         public Allow: types.RoleConditions = new types.RoleConditions();
+        /**
+         * Deny is the set of conditions evaluated to deny access. Deny takes priority
+         *  over allow.
+         */
         public Deny: types.RoleConditions = new types.RoleConditions();
 
         // Decodes RoleSpecV4 from an ArrayBuffer
@@ -12809,8 +14062,8 @@ export namespace types {
         }
 
         // Encodes RoleSpecV4 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -12819,7 +14072,7 @@ export namespace types {
         }
 
         // Encodes RoleSpecV4 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -12832,7 +14085,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -12844,7 +14097,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -12856,7 +14109,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -12864,20 +14117,62 @@ export namespace types {
         } // encode RoleSpecV4
     } // RoleSpecV4
 
+    // RoleOptions is a set of role options
     export class RoleOptions {
+        // ForwardAgent is SSH agent forwarding.
         public ForwardAgent: bool;
+        // MaxSessionTTL defines how long a SSH session can last for.
         public MaxSessionTTL: i64;
+        /**
+         * PortForwarding defines if the certificate will have
+         *  "permit-port-forwarding"
+         *  in the certificate. PortForwarding is "yes" if not set,
+         *  that's why this is a pointer
+         */
         public PortForwarding: types.BoolValue = new types.BoolValue();
+        /**
+         * CertificateFormat defines the format of the user certificate to allow
+         *  compatibility with older versions of OpenSSH.
+         */
         public CertificateFormat: string = "";
+        /**
+         * ClientIdleTimeout sets disconnect clients on idle timeout behavior,
+         *  if set to 0 means do not disconnect, otherwise is set to the idle
+         *  duration.
+         */
         public ClientIdleTimeout: i64;
+        // DisconnectExpiredCert sets disconnect clients on expired certificates.
         public DisconnectExpiredCert: bool;
+        // BPF defines what events to record for the BPF-based session recorder.
         public BPF: Array<string> = new Array<string>();
+        // PermitX11Forwarding authorizes use of X11 forwarding.
         public PermitX11Forwarding: bool;
+        /**
+         * MaxConnections defines the maximum number of
+         *  concurrent connections a user may hold.
+         */
         public MaxConnections: i64;
+        /**
+         * MaxSessions defines the maximum number of
+         *  concurrent sessions per connection.
+         */
         public MaxSessions: i64;
+        /**
+         * RequestAccess defines the access request stategy (optional|note|always)
+         *  where optional is the default.
+         */
         public RequestAccess: string = "";
+        // RequestPrompt is an optional message which tells users what they aught to
         public RequestPrompt: string = "";
+        /**
+         * RequireSessionMFA specifies whether a user is required to do an MFA
+         *  check for every session.
+         */
         public RequireSessionMFA: bool;
+        /**
+         * Lock specifies the locking mode (strict|best_effort) to be applied with
+         *  the role.
+         */
         public Lock: string = "";
 
         // Decodes RoleOptions from an ArrayBuffer
@@ -13036,8 +14331,8 @@ export namespace types {
         }
 
         // Encodes RoleOptions to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -13046,7 +14341,7 @@ export namespace types {
         }
 
         // Encodes RoleOptions to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -13068,7 +14363,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13130,29 +14425,65 @@ export namespace types {
         } // encode RoleOptions
     } // RoleOptions
 
+    /**
+     * RoleConditions is a set of conditions that must all match to be allowed or
+     *  denied access.
+     */
     export class RoleConditions {
+        // Logins is a list of *nix system logins.
         public Logins: Array<string> = new Array<string>();
+        /**
+         * Namespaces is a list of namespaces (used to partition a cluster). The
+         *  field should be called "namespaces" when it returns in Teleport 2.4.
+         */
         public Namespaces: Array<string> = new Array<string>();
+        /**
+         * NodeLabels is a map of node labels (used to dynamically grant access to
+         *  nodes).
+         */
         public NodeLabels: wrappers.LabelValues = new wrappers.LabelValues();
+        /**
+         * Rules is a list of rules and their access levels. Rules are a high level
+         *  construct used for access control.
+         */
         public Rules: Array<types.Rule> = new Array<types.Rule>();
+        // KubeGroups is a list of kubernetes groups
         public KubeGroups: Array<string> = new Array<string>();
         public Request: types.AccessRequestConditions =
             new types.AccessRequestConditions();
+        // KubeUsers is an optional kubernetes users to impersonate
         public KubeUsers: Array<string> = new Array<string>();
+        // AppLabels is a map of labels used as part of the RBAC system.
         public AppLabels: wrappers.LabelValues = new wrappers.LabelValues();
+        /**
+         * ClusterLabels is a map of node labels (used to dynamically grant access to
+         *  clusters).
+         */
         public ClusterLabels: wrappers.LabelValues = new wrappers.LabelValues();
+        // KubernetesLabels is a map of kubernetes cluster labels used for RBAC.
         public KubernetesLabels: wrappers.LabelValues =
             new wrappers.LabelValues();
+        // DatabaseLabels are used in RBAC system to allow/deny access to databases.
         public DatabaseLabels: wrappers.LabelValues =
             new wrappers.LabelValues();
+        // DatabaseNames is a list of database names this role is allowed to connect to.
         public DatabaseNames: Array<string> = new Array<string>();
+        // DatabaseUsers is a list of databaes users this role is allowed to connect as.
         public DatabaseUsers: Array<string> = new Array<string>();
+        /**
+         * Impersonate specifies what users and roles this role is allowed to impersonate
+         *  by issuing certificates or other possible means.
+         */
         public Impersonate: types.ImpersonateConditions =
             new types.ImpersonateConditions();
+        // ReviewRequests defines conditions for submitting access reviews.
         public ReviewRequests: types.AccessReviewConditions =
             new types.AccessReviewConditions();
+        // AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.
         public AWSRoleARNs: Array<string> = new Array<string>();
+        // WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.
         public WindowsDesktopLogins: Array<string> = new Array<string>();
+        // WindowsDesktopLabels are used in the RBAC system to allow/deny access to Windows desktops.
         public WindowsDesktopLabels: wrappers.LabelValues =
             new wrappers.LabelValues();
 
@@ -13476,8 +14807,8 @@ export namespace types {
         }
 
         // Encodes RoleConditions to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -13486,7 +14817,7 @@ export namespace types {
         }
 
         // Encodes RoleConditions to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -13515,7 +14846,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13525,7 +14856,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    this.Rules[n].encode(encoder);
+                    this.Rules[n].encodeU8Array(encoder);
                 }
             }
 
@@ -13545,7 +14876,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13565,7 +14896,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13577,7 +14908,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x4a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13589,7 +14920,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13601,7 +14932,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x5a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13629,7 +14960,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x72);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13641,7 +14972,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x7a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13673,7 +15004,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x92);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13681,13 +15012,37 @@ export namespace types {
         } // encode RoleConditions
     } // RoleConditions
 
+    /**
+     * AccessRequestConditions is a matcher for allow/deny restrictions on
+     *  access-requests.
+     */
     export class AccessRequestConditions {
+        // Roles is the name of roles which will match the request rule.
         public Roles: Array<string> = new Array<string>();
+        // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
         public ClaimsToRoles: Array<types.ClaimMapping> =
             new Array<types.ClaimMapping>();
+        /**
+         * Annotations is a collection of annotations to be programmatically
+         *  appended to pending access requests at the time of their creation.
+         *  These annotations serve as a mechanism to propagate extra information
+         *  to plugins.  Since these annotations support variable interpolation
+         *  syntax, they also offer a mechanism for forwarding claims from an
+         *  external identity provider, to a plugin via `{{external.trait_name}}`
+         *  style substitutions.
+         */
         public Annotations: wrappers.LabelValues = new wrappers.LabelValues();
+        /**
+         * Thresholds is a list of thresholds, one of which must be met in order for reviews
+         *  to trigger a state-transition.  If no thresholds are provided, a default threshold
+         *  of 1 for approval and denial is used.
+         */
         public Thresholds: Array<types.AccessReviewThreshold> =
             new Array<types.AccessReviewThreshold>();
+        /**
+         * SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but
+         *  that is not a requirement.
+         */
         public SuggestedReviewers: Array<string> = new Array<string>();
 
         // Decodes AccessRequestConditions from an ArrayBuffer
@@ -13805,8 +15160,8 @@ export namespace types {
         }
 
         // Encodes AccessRequestConditions to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -13815,7 +15170,7 @@ export namespace types {
         }
 
         // Encodes AccessRequestConditions to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -13834,7 +15189,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    this.ClaimsToRoles[n].encode(encoder);
+                    this.ClaimsToRoles[n].encodeU8Array(encoder);
                 }
             }
 
@@ -13846,7 +15201,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -13856,7 +15211,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    this.Thresholds[n].encode(encoder);
+                    this.Thresholds[n].encodeU8Array(encoder);
                 }
             }
 
@@ -13872,10 +15227,20 @@ export namespace types {
         } // encode AccessRequestConditions
     } // AccessRequestConditions
 
+    /**
+     * AccessReviewConditions is a matcher for allow/deny restrictions on
+     *  access reviews.
+     */
     export class AccessReviewConditions {
+        // Roles is the name of roles which may be reviewed.
         public Roles: Array<string> = new Array<string>();
+        // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
         public ClaimsToRoles: Array<types.ClaimMapping> =
             new Array<types.ClaimMapping>();
+        /**
+         * Where is an optional predicate which further limits which requests are
+         *  reviewable.
+         */
         public Where: string = "";
 
         // Decodes AccessReviewConditions from an ArrayBuffer
@@ -13950,8 +15315,8 @@ export namespace types {
         }
 
         // Encodes AccessReviewConditions to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -13960,7 +15325,7 @@ export namespace types {
         }
 
         // Encodes AccessReviewConditions to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -13979,7 +15344,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    this.ClaimsToRoles[n].encode(encoder);
+                    this.ClaimsToRoles[n].encodeU8Array(encoder);
                 }
             }
 
@@ -13993,9 +15358,13 @@ export namespace types {
         } // encode AccessReviewConditions
     } // AccessReviewConditions
 
+    // ClaimMapping maps a claim to teleport roles.
     export class ClaimMapping {
+        // Claim is a claim name.
         public Claim: string = "";
+        // Value is a claim value to match.
         public Value: string = "";
+        // Roles is a list of static teleport roles to match.
         public Roles: Array<string> = new Array<string>();
 
         // Decodes ClaimMapping from an ArrayBuffer
@@ -14056,8 +15425,8 @@ export namespace types {
         }
 
         // Encodes ClaimMapping to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -14066,7 +15435,7 @@ export namespace types {
         }
 
         // Encodes ClaimMapping to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -14094,10 +15463,18 @@ export namespace types {
         } // encode ClaimMapping
     } // ClaimMapping
 
+    /**
+     * Rule represents allow or deny rule that is executed to check
+     *  if user or service have access to resource
+     */
     export class Rule {
+        // Resources is a list of resources
         public Resources: Array<string> = new Array<string>();
+        // Verbs is a list of verbs
         public Verbs: Array<string> = new Array<string>();
+        // Where specifies optional advanced matcher
         public Where: string = "";
+        // Actions specifies optional actions taken when this rule matches
         public Actions: Array<string> = new Array<string>();
 
         // Decodes Rule from an ArrayBuffer
@@ -14160,8 +15537,8 @@ export namespace types {
         }
 
         // Encodes Rule to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -14170,7 +15547,7 @@ export namespace types {
         }
 
         // Encodes Rule to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -14209,9 +15586,19 @@ export namespace types {
         } // encode Rule
     } // Rule
 
+    /**
+     * ImpersonateConditions specifies whether users are allowed
+     *  to issue certificates for other users or groups.
+     */
     export class ImpersonateConditions {
+        /**
+         * Users is a list of resources this role is allowed to impersonate,
+         *  could be an empty list or a Wildcard pattern
+         */
         public Users: Array<string> = new Array<string>();
+        // Roles is a list of resources this role is allowed to impersonate
         public Roles: Array<string> = new Array<string>();
+        // Where specifies optional advanced matcher
         public Where: string = "";
 
         // Decodes ImpersonateConditions from an ArrayBuffer
@@ -14268,8 +15655,8 @@ export namespace types {
         }
 
         // Encodes ImpersonateConditions to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -14278,7 +15665,7 @@ export namespace types {
         }
 
         // Encodes ImpersonateConditions to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -14309,6 +15696,10 @@ export namespace types {
         } // encode ImpersonateConditions
     } // ImpersonateConditions
 
+    /**
+     * BoolValue is a wrapper around bool, used in cases
+     *  whenever bool value can have different default value when missing
+     */
     export class BoolValue {
         public Value: bool;
 
@@ -14349,8 +15740,8 @@ export namespace types {
         }
 
         // Encodes BoolValue to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -14359,7 +15750,7 @@ export namespace types {
         }
 
         // Encodes BoolValue to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -14373,11 +15764,17 @@ export namespace types {
         } // encode BoolValue
     } // BoolValue
 
+    // UserV2 is version 2 resource spec of the user
     export class UserV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a user specification
         public Spec: types.UserSpecV2 = new types.UserSpecV2();
 
         // Decodes UserV2 from an ArrayBuffer
@@ -14488,8 +15885,8 @@ export namespace types {
         }
 
         // Encodes UserV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -14498,7 +15895,7 @@ export namespace types {
         }
 
         // Encodes UserV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -14527,7 +15924,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -14539,7 +15936,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -14547,19 +15944,45 @@ export namespace types {
         } // encode UserV2
     } // UserV2
 
+    // UserSpecV2 is a specification for V2 user
     export class UserSpecV2 {
+        /**
+         * OIDCIdentities lists associated OpenID Connect identities
+         *  that let user log in using externally verified identity
+         */
         public OIDCIdentities: Array<types.ExternalIdentity> =
             new Array<types.ExternalIdentity>();
+        /**
+         * SAMLIdentities lists associated SAML identities
+         *  that let user log in using externally verified identity
+         */
         public SAMLIdentities: Array<types.ExternalIdentity> =
             new Array<types.ExternalIdentity>();
+        /**
+         * GithubIdentities list associated Github OAuth2 identities
+         *  that let user log in using externally verified identity
+         */
         public GithubIdentities: Array<types.ExternalIdentity> =
             new Array<types.ExternalIdentity>();
+        // Roles is a list of roles assigned to user
         public Roles: Array<string> = new Array<string>();
+        /**
+         * Traits are key/value pairs received from an identity provider (through
+         *  OIDC claims or SAML assertions) or from a system administrator for local
+         *  accounts. Traits are used to populate role variables.
+         */
         public Traits: wrappers.LabelValues = new wrappers.LabelValues();
+        // Status is a login status of the user
         public Status: types.LoginStatus = new types.LoginStatus();
+        // Expires if set sets TTL on the user
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // CreatedBy holds information about agent or person created this user
         public CreatedBy: types.CreatedBy = new types.CreatedBy();
+        /**
+         * LocalAuths hold sensitive data necessary for performing local
+         *  authentication
+         */
         public LocalAuth: types.LocalAuthSecrets = new types.LocalAuthSecrets();
 
         // Decodes UserSpecV2 from an ArrayBuffer
@@ -14789,8 +16212,8 @@ export namespace types {
         }
 
         // Encodes UserSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -14799,7 +16222,7 @@ export namespace types {
         }
 
         // Encodes UserSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -14810,7 +16233,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.OIDCIdentities[n].encode(encoder);
+                    this.OIDCIdentities[n].encodeU8Array(encoder);
                 }
             }
 
@@ -14820,7 +16243,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    this.SAMLIdentities[n].encode(encoder);
+                    this.SAMLIdentities[n].encodeU8Array(encoder);
                 }
             }
 
@@ -14830,7 +16253,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    this.GithubIdentities[n].encode(encoder);
+                    this.GithubIdentities[n].encodeU8Array(encoder);
                 }
             }
 
@@ -14850,7 +16273,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -14862,7 +16285,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -14874,7 +16297,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -14886,7 +16309,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -14898,7 +16321,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x4a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -14906,8 +16329,15 @@ export namespace types {
         } // encode UserSpecV2
     } // UserSpecV2
 
+    /**
+     * ExternalIdentity is OpenID Connect/SAML or Github identity that is linked
+     *  to particular user and connector and lets user to log in using external
+     *  credentials, e.g. google
+     */
     export class ExternalIdentity {
+        // ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'
         public ConnectorID: string = "";
+        // Username is username supplied by external identity provider
         public Username: string = "";
 
         // Decodes ExternalIdentity from an ArrayBuffer
@@ -14962,8 +16392,8 @@ export namespace types {
         }
 
         // Encodes ExternalIdentity to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -14972,7 +16402,7 @@ export namespace types {
         }
 
         // Encodes ExternalIdentity to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -14992,13 +16422,23 @@ export namespace types {
         } // encode ExternalIdentity
     } // ExternalIdentity
 
+    // LoginStatus is a login status of the user
     export class LoginStatus {
+        // IsLocked tells us if user is locked
         public IsLocked: bool;
+        // LockedMessage contains the message in case if user is locked
         public LockedMessage: string = "";
+        // LockedTime contains time when user was locked
         public LockedTime: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // LockExpires contains time when this lock will expire
         public LockExpires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        /**
+         * RecoveryAttemptLockExpires contains the time when this lock will expire
+         *  from reaching MaxAccountRecoveryAttempts. This field is used to determine
+         *  if a user got locked from recovery attempts.
+         */
         public RecoveryAttemptLockExpires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
 
@@ -15122,8 +16562,8 @@ export namespace types {
         }
 
         // Encodes LoginStatus to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -15132,7 +16572,7 @@ export namespace types {
         }
 
         // Encodes LoginStatus to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -15155,7 +16595,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15167,7 +16607,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15180,7 +16620,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15188,10 +16628,14 @@ export namespace types {
         } // encode LoginStatus
     } // LoginStatus
 
+    // CreatedBy holds information about the person or agent who created the user
     export class CreatedBy {
+        // Identity if present means that user was automatically created by identity
         public Connector: types.ConnectorRef = new types.ConnectorRef();
+        // Time specifies when user was created
         public Time: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // User holds information about user
         public User: types.UserRef = new types.UserRef();
 
         // Decodes CreatedBy from an ArrayBuffer
@@ -15296,8 +16740,8 @@ export namespace types {
         }
 
         // Encodes CreatedBy to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -15306,7 +16750,7 @@ export namespace types {
         }
 
         // Encodes CreatedBy to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -15319,7 +16763,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15331,7 +16775,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15343,7 +16787,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15351,9 +16795,13 @@ export namespace types {
         } // encode CreatedBy
     } // CreatedBy
 
+    // U2FRegistrationData encodes the universal second factor registration payload.
     export class U2FRegistrationData {
+        // Raw is the serialized registration data as received from the token
         public Raw: Array<u8> = new Array<u8>();
+        // KeyHandle uniquely identifies a key on a device
         public KeyHandle: Array<u8> = new Array<u8>();
+        // PubKey is an DER encoded ecdsa public key
         public PubKey: Array<u8> = new Array<u8>();
 
         // Decodes U2FRegistrationData from an ArrayBuffer
@@ -15418,8 +16866,8 @@ export namespace types {
         }
 
         // Encodes U2FRegistrationData to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -15428,7 +16876,7 @@ export namespace types {
         }
 
         // Encodes U2FRegistrationData to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -15453,13 +16901,21 @@ export namespace types {
         } // encode U2FRegistrationData
     } // U2FRegistrationData
 
+    // LocalAuthSecrets holds sensitive data used to authenticate a local user.
     export class LocalAuthSecrets {
+        // PasswordHash encodes a combined salt & hash for password verification.
         public PasswordHash: Array<u8> = new Array<u8>();
+        // Deprecated 2nd factor fields, use MFA below instead.
         public TOTPKey: string = "";
         public U2FRegistration: types.U2FRegistrationData =
             new types.U2FRegistrationData();
         public U2FCounter: u32;
         public MFA: Array<types.MFADevice> = new Array<types.MFADevice>();
+        /**
+         * Webauthn holds settings necessary for webauthn local auth.
+         *  May be null for legacy users or users that haven't yet used webauthn as
+         *  their second factor.
+         */
         public Webauthn: types.WebauthnLocalAuth =
             new types.WebauthnLocalAuth();
 
@@ -15596,8 +17052,8 @@ export namespace types {
         }
 
         // Encodes LocalAuthSecrets to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -15606,7 +17062,7 @@ export namespace types {
         }
 
         // Encodes LocalAuthSecrets to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -15630,7 +17086,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15645,7 +17101,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    this.MFA[n].encode(encoder);
+                    this.MFA[n].encodeU8Array(encoder);
                 }
             }
 
@@ -15657,7 +17113,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15665,11 +17121,18 @@ export namespace types {
         } // encode LocalAuthSecrets
     } // LocalAuthSecrets
 
+    /**
+     * MFADevice is a multi-factor authentication device, such as a security key or
+     *  an OTP app.
+     */
     export class MFADevice {
+        public __oneOf_device: string = "";
+        // Boilerplate for implementing the Resource interface.
         public kind: string = "";
         public sub_kind: string = "";
         public version: string = "";
         public metadata: types.Metadata = new types.Metadata();
+        // ID is a UUID of this device.
         public id: string = "";
         public added_at: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
@@ -15760,6 +17223,7 @@ export namespace types {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_device = "totp";
                         break;
                     }
                     case 9: {
@@ -15773,6 +17237,7 @@ export namespace types {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_device = "u2f";
                         break;
                     }
                     case 10: {
@@ -15786,6 +17251,7 @@ export namespace types {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_device = "webauthn";
                         break;
                     }
 
@@ -15893,8 +17359,8 @@ export namespace types {
         }
 
         // Encodes MFADevice to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -15903,7 +17369,7 @@ export namespace types {
         }
 
         // Encodes MFADevice to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -15932,7 +17398,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15950,7 +17416,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15962,7 +17428,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15974,7 +17440,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15986,7 +17452,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x4a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -15998,7 +17464,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -16006,6 +17472,7 @@ export namespace types {
         } // encode MFADevice
     } // MFADevice
 
+    // TOTPDevice holds the TOTP-specific fields of MFADevice.
     export class TOTPDevice {
         public key: string = "";
 
@@ -16051,8 +17518,8 @@ export namespace types {
         }
 
         // Encodes TOTPDevice to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -16061,7 +17528,7 @@ export namespace types {
         }
 
         // Encodes TOTPDevice to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -16076,9 +17543,13 @@ export namespace types {
         } // encode TOTPDevice
     } // TOTPDevice
 
+    // U2FDevice holds the U2F-specific fields of MFADevice.
     export class U2FDevice {
+        // KeyHandle uniquely identifies a key on a device
         public key_handle: Array<u8> = new Array<u8>();
+        // PubKey is an DER encoded ecdsa public key
         public pub_key: Array<u8> = new Array<u8>();
+        // Counter is the latest seen value of the U2F usage counter.
         public counter: u32;
 
         // Decodes U2FDevice from an ArrayBuffer
@@ -16139,8 +17610,8 @@ export namespace types {
         }
 
         // Encodes U2FDevice to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -16149,7 +17620,7 @@ export namespace types {
         }
 
         // Encodes U2FDevice to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -16173,11 +17644,30 @@ export namespace types {
         } // encode U2FDevice
     } // U2FDevice
 
+    // WebauthnDevice holds Webauthn-specific fields of MFADevice.
     export class WebauthnDevice {
+        // Credential ID for the authenticator.
         public credential_id: Array<u8> = new Array<u8>();
+        /**
+         * Public key encoded in CBOR format.
+         *  Webauthn support various key algorithms; CBOR encoding is used to reflect
+         *  those choices.
+         *  See https://w3c.github.io/webauthn/#sctn-alg-identifier for a starter
+         *  reference.
+         */
         public public_key_cbor: Array<u8> = new Array<u8>();
+        // Attestation format used by the authenticator, if any.
         public attestation_type: string = "";
+        /**
+         * AAGUID is the globally unique identifier of the authenticator model.
+         *  Zeroed for U2F devices.
+         */
         public aaguid: Array<u8> = new Array<u8>();
+        /**
+         * Signature counter for login operations.
+         *  Actual counter values received from the authenticator are expected to be
+         *  higher than the previously-stored value.
+         */
         public signature_counter: u32;
 
         // Decodes WebauthnDevice from an ArrayBuffer
@@ -16260,8 +17750,8 @@ export namespace types {
         }
 
         // Encodes WebauthnDevice to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -16270,7 +17760,7 @@ export namespace types {
         }
 
         // Encodes WebauthnDevice to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -16304,7 +17794,12 @@ export namespace types {
         } // encode WebauthnDevice
     } // WebauthnDevice
 
+    // WebauthnLocalAuth holds settings necessary for local webauthn use.
     export class WebauthnLocalAuth {
+        /**
+         * UserID is the random user handle generated for the user.
+         *  See https://www.w3.org/TR/webauthn-2/#sctn-user-handle-privacy.
+         */
         public UserID: Array<u8> = new Array<u8>();
 
         // Decodes WebauthnLocalAuth from an ArrayBuffer
@@ -16349,8 +17844,8 @@ export namespace types {
         }
 
         // Encodes WebauthnLocalAuth to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -16359,7 +17854,7 @@ export namespace types {
         }
 
         // Encodes WebauthnLocalAuth to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -16374,9 +17869,13 @@ export namespace types {
         } // encode WebauthnLocalAuth
     } // WebauthnLocalAuth
 
+    // ConnectorRef holds information about OIDC connector
     export class ConnectorRef {
+        // Type is connector type
         public Type: string = "";
+        // ID is connector ID
         public ID: string = "";
+        // Identity is external identity of the user
         public Identity: string = "";
 
         // Decodes ConnectorRef from an ArrayBuffer
@@ -16441,8 +17940,8 @@ export namespace types {
         }
 
         // Encodes ConnectorRef to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -16451,7 +17950,7 @@ export namespace types {
         }
 
         // Encodes ConnectorRef to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -16476,7 +17975,9 @@ export namespace types {
         } // encode ConnectorRef
     } // ConnectorRef
 
+    // UserRef holds references to user
     export class UserRef {
+        // Name is name of the user
         public Name: string = "";
 
         // Decodes UserRef from an ArrayBuffer
@@ -16521,8 +18022,8 @@ export namespace types {
         }
 
         // Encodes UserRef to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -16531,7 +18032,7 @@ export namespace types {
         }
 
         // Encodes UserRef to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -16546,11 +18047,17 @@ export namespace types {
         } // encode UserRef
     } // UserRef
 
+    // ReverseTunnelV2 is version 2 of the resource spec of the reverse tunnel
     export class ReverseTunnelV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is a resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a reverse tunnel specification
         public Spec: types.ReverseTunnelSpecV2 =
             new types.ReverseTunnelSpecV2();
 
@@ -16663,8 +18170,8 @@ export namespace types {
         }
 
         // Encodes ReverseTunnelV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -16673,7 +18180,7 @@ export namespace types {
         }
 
         // Encodes ReverseTunnelV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -16702,7 +18209,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -16714,7 +18221,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -16722,9 +18229,16 @@ export namespace types {
         } // encode ReverseTunnelV2
     } // ReverseTunnelV2
 
+    // ReverseTunnelSpecV2 is a specification for V2 reverse tunnel
     export class ReverseTunnelSpecV2 {
+        // ClusterName is a domain name of remote cluster we are connecting to
         public ClusterName: string = "";
+        /**
+         * DialAddrs is a list of remote address to establish a connection to
+         *  it's always SSH over TCP
+         */
         public DialAddrs: Array<string> = new Array<string>();
+        // Type is the type of reverse tunnel, either proxy or node.
         public Type: string = "";
 
         // Decodes ReverseTunnelSpecV2 from an ArrayBuffer
@@ -16786,8 +18300,8 @@ export namespace types {
         }
 
         // Encodes ReverseTunnelSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -16796,7 +18310,7 @@ export namespace types {
         }
 
         // Encodes ReverseTunnelSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -16825,11 +18339,17 @@ export namespace types {
         } // encode ReverseTunnelSpecV2
     } // ReverseTunnelSpecV2
 
+    // TunnelConnectionV2 is version 2 of the resource spec of the tunnel connection
     export class TunnelConnectionV2 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is a resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a tunnel specification
         public Spec: types.TunnelConnectionSpecV2 =
             new types.TunnelConnectionSpecV2();
 
@@ -16942,8 +18462,8 @@ export namespace types {
         }
 
         // Encodes TunnelConnectionV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -16952,7 +18472,7 @@ export namespace types {
         }
 
         // Encodes TunnelConnectionV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -16981,7 +18501,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -16993,7 +18513,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -17001,11 +18521,16 @@ export namespace types {
         } // encode TunnelConnectionV2
     } // TunnelConnectionV2
 
+    // TunnelConnectionSpecV2 is a specification for V2 tunnel connection
     export class TunnelConnectionSpecV2 {
+        // ClusterName is a name of the cluster
         public ClusterName: string = "";
+        // ProxyName is the name of the proxy server
         public ProxyName: string = "";
+        // LastHeartbeat is a time of the last heartbeat
         public LastHeartbeat: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // Type is the type of reverse tunnel, either proxy or node.
         public Type: string = "";
 
         // Decodes TunnelConnectionSpecV2 from an ArrayBuffer
@@ -17095,8 +18620,8 @@ export namespace types {
         }
 
         // Encodes TunnelConnectionSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -17105,7 +18630,7 @@ export namespace types {
         }
 
         // Encodes TunnelConnectionSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -17129,7 +18654,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -17143,8 +18668,17 @@ export namespace types {
         } // encode TunnelConnectionSpecV2
     } // TunnelConnectionSpecV2
 
+    /**
+     * SemaphoreFilter encodes semaphore filtering params.
+     *  A semaphore filter matches a semaphore if all nonzero fields
+     *  match the corresponding semaphore fileds (e.g. a filter which
+     *  specifies only `kind=foo` would match all semaphores of
+     *  kind `foo`).
+     */
     export class SemaphoreFilter {
+        // SemaphoreKind is the kind of the semaphore.
         public SemaphoreKind: string = "";
+        // SemaphoreName is the name of the semaphore.
         public SemaphoreName: string = "";
 
         // Decodes SemaphoreFilter from an ArrayBuffer
@@ -17199,8 +18733,8 @@ export namespace types {
         }
 
         // Encodes SemaphoreFilter to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -17209,7 +18743,7 @@ export namespace types {
         }
 
         // Encodes SemaphoreFilter to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -17229,12 +18763,21 @@ export namespace types {
         } // encode SemaphoreFilter
     } // SemaphoreFilter
 
+    // AcquireSemaphoreRequest holds semaphore lease acquisition parameters.
     export class AcquireSemaphoreRequest {
+        // SemaphoreKind is the kind of the semaphore.
         public SemaphoreKind: string = "";
+        // SemaphoreName is the name of the semaphore.
         public SemaphoreName: string = "";
+        /**
+         * MaxLeases is the maximum number of concurrent leases.  If acquisition
+         *  would cause more than MaxLeases to exist, acquisition must fail.
+         */
         public MaxLeases: i64;
+        // Expires is the time at which this lease expires.
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // Holder identifies the entitiy holding the lease.
         public Holder: string = "";
 
         // Decodes AcquireSemaphoreRequest from an ArrayBuffer
@@ -17332,8 +18875,8 @@ export namespace types {
         }
 
         // Encodes AcquireSemaphoreRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -17342,7 +18885,7 @@ export namespace types {
         }
 
         // Encodes AcquireSemaphoreRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -17370,7 +18913,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -17384,10 +18927,15 @@ export namespace types {
         } // encode AcquireSemaphoreRequest
     } // AcquireSemaphoreRequest
 
+    // SemaphoreLease represents lease acquired for semaphore
     export class SemaphoreLease {
+        // SemaphoreKind is the kind of the semaphore.
         public SemaphoreKind: string = "";
+        // SemaphoreName is the name of the semaphore.
         public SemaphoreName: string = "";
+        // LeaseID uniquely identifies this lease.
         public LeaseID: string = "";
+        // Expires is the time at which this lease expires.
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
 
@@ -17477,8 +19025,8 @@ export namespace types {
         }
 
         // Encodes SemaphoreLease to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -17487,7 +19035,7 @@ export namespace types {
         }
 
         // Encodes SemaphoreLease to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -17516,7 +19064,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -17524,10 +19072,14 @@ export namespace types {
         } // encode SemaphoreLease
     } // SemaphoreLease
 
+    // SemaphoreLeaseRef identifies an existent lease.
     export class SemaphoreLeaseRef {
+        // LeaseID is the unique ID of the lease.
         public LeaseID: string = "";
+        // Expires is the time at which the lease expires.
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // Holder identifies the lease holder.
         public Holder: string = "";
 
         // Decodes SemaphoreLeaseRef from an ArrayBuffer
@@ -17607,8 +19159,8 @@ export namespace types {
         }
 
         // Encodes SemaphoreLeaseRef to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -17617,7 +19169,7 @@ export namespace types {
         }
 
         // Encodes SemaphoreLeaseRef to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -17636,7 +19188,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -17650,11 +19202,17 @@ export namespace types {
         } // encode SemaphoreLeaseRef
     } // SemaphoreLeaseRef
 
+    // SemaphoreV3 implements Semaphore interface
     export class SemaphoreV3 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is version
         public Version: string = "";
+        // Metadata is Semaphore metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a lease V3 spec
         public Spec: types.SemaphoreSpecV3 = new types.SemaphoreSpecV3();
 
         // Decodes SemaphoreV3 from an ArrayBuffer
@@ -17766,8 +19324,8 @@ export namespace types {
         }
 
         // Encodes SemaphoreV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -17776,7 +19334,7 @@ export namespace types {
         }
 
         // Encodes SemaphoreV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -17805,7 +19363,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -17817,7 +19375,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -17825,7 +19383,9 @@ export namespace types {
         } // encode SemaphoreV3
     } // SemaphoreV3
 
+    // SemaphoreSpecV3 contains the data about lease
     export class SemaphoreSpecV3 {
+        // Leases is a list of all currently acquired leases.
         public Leases: Array<types.SemaphoreLeaseRef> =
             new Array<types.SemaphoreLeaseRef>();
 
@@ -17884,8 +19444,8 @@ export namespace types {
         }
 
         // Encodes SemaphoreSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -17894,7 +19454,7 @@ export namespace types {
         }
 
         // Encodes SemaphoreSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -17905,7 +19465,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.Leases[n].encode(encoder);
+                    this.Leases[n].encodeU8Array(encoder);
                 }
             }
 
@@ -17913,11 +19473,17 @@ export namespace types {
         } // encode SemaphoreSpecV3
     } // SemaphoreSpecV3
 
+    // WebSessionV2 represents an application or UI web session.
     export class WebSessionV2 {
+        // Kind is a resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources.
         public SubKind: string = "";
+        // Version is version.
         public Version: string = "";
+        // Metadata is a resource metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a tunnel specification.
         public Spec: types.WebSessionSpecV2 = new types.WebSessionSpecV2();
 
         // Decodes WebSessionV2 from an ArrayBuffer
@@ -18029,8 +19595,8 @@ export namespace types {
         }
 
         // Encodes WebSessionV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -18039,7 +19605,7 @@ export namespace types {
         }
 
         // Encodes WebSessionV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -18068,7 +19634,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -18080,7 +19646,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -18088,18 +19654,33 @@ export namespace types {
         } // encode WebSessionV2
     } // WebSessionV2
 
+    // WebSessionSpecV2 is a specification for web session.
     export class WebSessionSpecV2 {
+        // User is the identity of the user to which the web session belongs.
         public User: string = "";
+        // Pub is the SSH certificate for the user.
         public Pub: Array<u8> = new Array<u8>();
+        // Priv is the SSH private key for the user.
         public Priv: Array<u8> = new Array<u8>();
+        // TLSCert is the TLS certificate for the user.
         public TLSCert: Array<u8> = new Array<u8>();
+        /**
+         * BearerToken is a token that is paired with the session cookie for
+         *  authentication. It is periodically rotated so a stolen cookie itself
+         *  is not enough to steal a session. In addition it is used for CSRF
+         *  mitigation.
+         */
         public BearerToken: string = "";
+        // BearerTokenExpires is the absolute time when the token expires.
         public BearerTokenExpires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // Expires is the absolute time when the session expires.
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // LoginTime is the time this user recently logged in.
         public LoginTime: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // IdleTimeout is the max time a user can be inactive in a session.
         public IdleTimeout: i64;
 
         // Decodes WebSessionSpecV2 from an ArrayBuffer
@@ -18266,8 +19847,8 @@ export namespace types {
         }
 
         // Encodes WebSessionSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -18276,7 +19857,7 @@ export namespace types {
         }
 
         // Encodes WebSessionSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -18315,7 +19896,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -18327,7 +19908,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -18339,7 +19920,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -18352,7 +19933,9 @@ export namespace types {
         } // encode WebSessionSpecV2
     } // WebSessionSpecV2
 
+    // WebSessionFilter encodes cache watch parameters for filtering web sessions.
     export class WebSessionFilter {
+        // User is the username to filter web sessions for.
         public User: string = "";
 
         // Decodes WebSessionFilter from an ArrayBuffer
@@ -18397,8 +19980,8 @@ export namespace types {
         }
 
         // Encodes WebSessionFilter to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -18407,7 +19990,7 @@ export namespace types {
         }
 
         // Encodes WebSessionFilter to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -18422,11 +20005,17 @@ export namespace types {
         } // encode WebSessionFilter
     } // WebSessionFilter
 
+    // RemoteClusterV3 represents remote cluster resource specification
     export class RemoteClusterV3 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources
         public SubKind: string = "";
+        // Version is resource API version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Status is a remote cluster status
         public Status: types.RemoteClusterStatusV3 =
             new types.RemoteClusterStatusV3();
 
@@ -18539,8 +20128,8 @@ export namespace types {
         }
 
         // Encodes RemoteClusterV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -18549,7 +20138,7 @@ export namespace types {
         }
 
         // Encodes RemoteClusterV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -18578,7 +20167,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -18590,7 +20179,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -18598,8 +20187,11 @@ export namespace types {
         } // encode RemoteClusterV3
     } // RemoteClusterV3
 
+    // RemoteClusterStatusV3 represents status of the remote cluster
     export class RemoteClusterStatusV3 {
+        // Connection represents connection status, online or offline
         public Connection: string = "";
+        // LastHeartbeat records last heartbeat of the cluster
         public LastHeartbeat: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
 
@@ -18669,8 +20261,8 @@ export namespace types {
         }
 
         // Encodes RemoteClusterStatusV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -18679,7 +20271,7 @@ export namespace types {
         }
 
         // Encodes RemoteClusterStatusV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -18698,7 +20290,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -18706,9 +20298,23 @@ export namespace types {
         } // encode RemoteClusterStatusV3
     } // RemoteClusterStatusV3
 
+    /**
+     * KubernetesCluster is a named kubernetes API endpoint handled by a Server.
+     *
+     *  TODO: deprecate and convert all usage to KubernetesClusterV3
+     */
     export class KubernetesCluster {
+        // Name is the name of this kubernetes cluster.
         public Name: string = "";
+        /**
+         * StaticLabels is map of static labels associated with this cluster.
+         *  Used for RBAC.
+         */
         public StaticLabels: Map<string, string> = new Map<string, string>();
+        /**
+         * DynamicLabels is map of dynamic labels associated with this cluster.
+         *  Used for RBAC.
+         */
         public DynamicLabels: Map<string, types.CommandLabelV2> = new Map<
             string,
             types.CommandLabelV2
@@ -18807,8 +20413,8 @@ export namespace types {
         }
 
         // Encodes KubernetesCluster to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -18817,7 +20423,7 @@ export namespace types {
         }
 
         // Encodes KubernetesCluster to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -18874,7 +20480,7 @@ export namespace types {
                         if (messageSize > 0) {
                             encoder.uint32(0x12);
                             encoder.uint32(messageSize);
-                            value.encode(encoder);
+                            value.encodeU8Array(encoder);
                         }
                     }
                 }
@@ -18884,11 +20490,17 @@ export namespace types {
         } // encode KubernetesCluster
     } // KubernetesCluster
 
+    // KubernetesClusterV3 represents a named kubernetes API endpoint.
     export class KubernetesClusterV3 {
+        // Kind is the cluster resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource subkind.
         public SubKind: string = "";
+        // Version is the resource version.
         public Version: string = "";
+        // Metadata is the resource metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is the resource spec.
         public Spec: types.KubernetesClusterSpecV3 =
             new types.KubernetesClusterSpecV3();
 
@@ -19001,8 +20613,8 @@ export namespace types {
         }
 
         // Encodes KubernetesClusterV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19011,7 +20623,7 @@ export namespace types {
         }
 
         // Encodes KubernetesClusterV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19040,7 +20652,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -19052,7 +20664,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -19060,7 +20672,9 @@ export namespace types {
         } // encode KubernetesClusterV3
     } // KubernetesClusterV3
 
+    // KubernetesClusterSpecV3 is a specification for a Kubernetes cluster.
     export class KubernetesClusterSpecV3 {
+        // DynamicLabels are the cluster's dynamic labels.
         public DynamicLabels: Map<string, types.CommandLabelV2> = new Map<
             string,
             types.CommandLabelV2
@@ -19124,8 +20738,8 @@ export namespace types {
         }
 
         // Encodes KubernetesClusterSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19134,7 +20748,7 @@ export namespace types {
         }
 
         // Encodes KubernetesClusterSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19162,7 +20776,7 @@ export namespace types {
                         if (messageSize > 0) {
                             encoder.uint32(0x12);
                             encoder.uint32(messageSize);
-                            value.encode(encoder);
+                            value.encodeU8Array(encoder);
                         }
                     }
                 }
@@ -19172,11 +20786,22 @@ export namespace types {
         } // encode KubernetesClusterSpecV3
     } // KubernetesClusterSpecV3
 
+    /**
+     * WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
+     *  to the client.
+     *  Initially bound to a web session, these have been factored out into a separate resource to
+     *  enable separate lifecycle management.
+     */
     export class WebTokenV3 {
+        // Kind is a resource kind
         public Kind: string = "";
+        // SubKind is an optional resource sub kind
         public SubKind: string = "";
+        // Version is the resource version
         public Version: string = "";
+        // Metadata is resource metadata
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec defines the web token
         public Spec: types.WebTokenSpecV3 = new types.WebTokenSpecV3();
 
         // Decodes WebTokenV3 from an ArrayBuffer
@@ -19288,8 +20913,8 @@ export namespace types {
         }
 
         // Encodes WebTokenV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19298,7 +20923,7 @@ export namespace types {
         }
 
         // Encodes WebTokenV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19327,7 +20952,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -19339,7 +20964,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -19347,8 +20972,11 @@ export namespace types {
         } // encode WebTokenV3
     } // WebTokenV3
 
+    // WebTokenSpecV3 is a unique time-limited token bound to a user's web session
     export class WebTokenSpecV3 {
+        // User specifies the user the token is bound to.
         public User: string = "";
+        // Token specifies the token's value.
         public Token: string = "";
 
         // Decodes WebTokenSpecV3 from an ArrayBuffer
@@ -19403,8 +21031,8 @@ export namespace types {
         }
 
         // Encodes WebTokenSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19413,7 +21041,7 @@ export namespace types {
         }
 
         // Encodes WebTokenSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19433,8 +21061,11 @@ export namespace types {
         } // encode WebTokenSpecV3
     } // WebTokenSpecV3
 
+    // GetWebSessionRequest describes a request to query a web session
     export class GetWebSessionRequest {
+        // User specifies the user the web session is for.
         public User: string = "";
+        // SessionID specifies the web session ID.
         public SessionID: string = "";
 
         // Decodes GetWebSessionRequest from an ArrayBuffer
@@ -19489,8 +21120,8 @@ export namespace types {
         }
 
         // Encodes GetWebSessionRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19499,7 +21130,7 @@ export namespace types {
         }
 
         // Encodes GetWebSessionRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19519,8 +21150,11 @@ export namespace types {
         } // encode GetWebSessionRequest
     } // GetWebSessionRequest
 
+    // DeleteWebSessionRequest describes a request to delete a web session
     export class DeleteWebSessionRequest {
+        // User specifies the user the session is bound to
         public User: string = "";
+        // SessionID specifies the web session ID to delete.
         public SessionID: string = "";
 
         // Decodes DeleteWebSessionRequest from an ArrayBuffer
@@ -19575,8 +21209,8 @@ export namespace types {
         }
 
         // Encodes DeleteWebSessionRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19585,7 +21219,7 @@ export namespace types {
         }
 
         // Encodes DeleteWebSessionRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19605,8 +21239,11 @@ export namespace types {
         } // encode DeleteWebSessionRequest
     } // DeleteWebSessionRequest
 
+    // GetWebTokenRequest describes a request to query a web token
     export class GetWebTokenRequest {
+        // User specifies the user the token is for.
         public User: string = "";
+        // Token specifies the token to get.
         public Token: string = "";
 
         // Decodes GetWebTokenRequest from an ArrayBuffer
@@ -19661,8 +21298,8 @@ export namespace types {
         }
 
         // Encodes GetWebTokenRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19671,7 +21308,7 @@ export namespace types {
         }
 
         // Encodes GetWebTokenRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19691,8 +21328,11 @@ export namespace types {
         } // encode GetWebTokenRequest
     } // GetWebTokenRequest
 
+    // DeleteWebTokenRequest describes a request to delete a web token
     export class DeleteWebTokenRequest {
+        // User specifies the user the token is for.
         public User: string = "";
+        // Token specifies the token to delete.
         public Token: string = "";
 
         // Decodes DeleteWebTokenRequest from an ArrayBuffer
@@ -19747,8 +21387,8 @@ export namespace types {
         }
 
         // Encodes DeleteWebTokenRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19757,7 +21397,7 @@ export namespace types {
         }
 
         // Encodes DeleteWebTokenRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19777,7 +21417,9 @@ export namespace types {
         } // encode DeleteWebTokenRequest
     } // DeleteWebTokenRequest
 
+    // ResourceRequest is a request relating to a named resource.
     export class ResourceRequest {
+        // Name is the name of the resource.
         public Name: string = "";
 
         // Decodes ResourceRequest from an ArrayBuffer
@@ -19822,8 +21464,8 @@ export namespace types {
         }
 
         // Encodes ResourceRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19832,7 +21474,7 @@ export namespace types {
         }
 
         // Encodes ResourceRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19847,8 +21489,11 @@ export namespace types {
         } // encode ResourceRequest
     } // ResourceRequest
 
+    // ResourceWithSecretsRequest is a request relating to a named resource with secrets.
     export class ResourceWithSecretsRequest {
+        // Name is the name of the resource.
         public Name: string = "";
+        // WithSecrets specifies whether to load associated secrets.
         public WithSecrets: bool;
 
         // Decodes ResourceWithSecretsRequest from an ArrayBuffer
@@ -19898,8 +21543,8 @@ export namespace types {
         }
 
         // Encodes ResourceWithSecretsRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19908,7 +21553,7 @@ export namespace types {
         }
 
         // Encodes ResourceWithSecretsRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19927,7 +21572,9 @@ export namespace types {
         } // encode ResourceWithSecretsRequest
     } // ResourceWithSecretsRequest
 
+    // ResourcesWithSecretsRequest is a request relating to resources with secrets.
     export class ResourcesWithSecretsRequest {
+        // WithSecrets specifies whether to load associated secrets.
         public WithSecrets: bool;
 
         // Decodes ResourcesWithSecretsRequest from an ArrayBuffer
@@ -19969,8 +21616,8 @@ export namespace types {
         }
 
         // Encodes ResourcesWithSecretsRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -19979,7 +21626,7 @@ export namespace types {
         }
 
         // Encodes ResourcesWithSecretsRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -19993,8 +21640,11 @@ export namespace types {
         } // encode ResourcesWithSecretsRequest
     } // ResourcesWithSecretsRequest
 
+    // ResourcesInNamespaceRequest is a request relating to a named resource in the given namespace.
     export class ResourceInNamespaceRequest {
+        // Name is the name of the resource.
         public Name: string = "";
+        // Namespace is the namespace of resources.
         public Namespace: string = "";
 
         // Decodes ResourceInNamespaceRequest from an ArrayBuffer
@@ -20049,8 +21699,8 @@ export namespace types {
         }
 
         // Encodes ResourceInNamespaceRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -20059,7 +21709,7 @@ export namespace types {
         }
 
         // Encodes ResourceInNamespaceRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -20079,7 +21729,9 @@ export namespace types {
         } // encode ResourceInNamespaceRequest
     } // ResourceInNamespaceRequest
 
+    // ResourcesInNamespaceRequest is a request relating to resources in the given namespace.
     export class ResourcesInNamespaceRequest {
+        // Namespace is the namespace of resources.
         public Namespace: string = "";
 
         // Decodes ResourcesInNamespaceRequest from an ArrayBuffer
@@ -20126,8 +21778,8 @@ export namespace types {
         }
 
         // Encodes ResourcesInNamespaceRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -20136,7 +21788,7 @@ export namespace types {
         }
 
         // Encodes ResourcesInNamespaceRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -20151,23 +21803,29 @@ export namespace types {
         } // encode ResourcesInNamespaceRequest
     } // ResourcesInNamespaceRequest
 
-    export class OIDCConnectorV2 {
+    // OIDCConnectorV3 represents an OIDC connector.
+    export class OIDCConnectorV3 {
+        // Kind is a resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources.
         public SubKind: string = "";
+        // Version is a resource version.
         public Version: string = "";
+        // Metadata holds resource metadata.
         public Metadata: types.Metadata = new types.Metadata();
-        public Spec: types.OIDCConnectorSpecV2 =
-            new types.OIDCConnectorSpecV2();
+        // Spec is an OIDC connector specification.
+        public Spec: types.OIDCConnectorSpecV3 =
+            new types.OIDCConnectorSpecV3();
 
-        // Decodes OIDCConnectorV2 from an ArrayBuffer
-        static decodeArrayBuffer(buf: ArrayBuffer): OIDCConnectorV2 {
-            return OIDCConnectorV2.decode(new DataView(buf));
+        // Decodes OIDCConnectorV3 from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): OIDCConnectorV3 {
+            return OIDCConnectorV3.decode(new DataView(buf));
         }
 
-        // Decodes OIDCConnectorV2 from a DataView
-        static decode(view: DataView): OIDCConnectorV2 {
+        // Decodes OIDCConnectorV3 from a DataView
+        static decode(view: DataView): OIDCConnectorV3 {
             const decoder = new __proto.Decoder(view);
-            const obj = new OIDCConnectorV2();
+            const obj = new OIDCConnectorV3();
 
             while (!decoder.eof()) {
                 const tag = decoder.tag();
@@ -20201,7 +21859,7 @@ export namespace types {
                     }
                     case 5: {
                         const length = decoder.uint32();
-                        obj.Spec = types.OIDCConnectorSpecV2.decode(
+                        obj.Spec = types.OIDCConnectorSpecV3.decode(
                             new DataView(
                                 decoder.view.buffer,
                                 decoder.pos + decoder.view.byteOffset,
@@ -20219,7 +21877,7 @@ export namespace types {
                 }
             }
             return obj;
-        } // decode OIDCConnectorV2
+        } // decode OIDCConnectorV3
 
         public size(): u32 {
             let size: u32 = 0;
@@ -20254,8 +21912,8 @@ export namespace types {
             }
 
             if (this.Spec != null) {
-                const f: types.OIDCConnectorSpecV2 = this
-                    .Spec as types.OIDCConnectorSpecV2;
+                const f: types.OIDCConnectorSpecV3 = this
+                    .Spec as types.OIDCConnectorSpecV3;
                 const messageSize = f.size();
 
                 if (messageSize > 0) {
@@ -20267,9 +21925,9 @@ export namespace types {
             return size;
         }
 
-        // Encodes OIDCConnectorV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        // Encodes OIDCConnectorV3 to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -20277,8 +21935,8 @@ export namespace types {
             return view;
         }
 
-        // Encodes OIDCConnectorV2 to the Array<u8>
-        encode(
+        // Encodes OIDCConnectorV3 to the Array<u8>
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -20307,39 +21965,41 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
             if (this.Spec != null) {
-                const f = this.Spec as types.OIDCConnectorSpecV2;
+                const f = this.Spec as types.OIDCConnectorSpecV3;
 
                 const messageSize = f.size();
 
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
             return buf;
-        } // encode OIDCConnectorV2
-    } // OIDCConnectorV2
+        } // encode OIDCConnectorV3
+    } // OIDCConnectorV3
 
-    export class OIDCConnectorV2List {
-        public OIDCConnectors: Array<types.OIDCConnectorV2> =
-            new Array<types.OIDCConnectorV2>();
+    // OIDCConnectorV3List is a list of OIDC connectors.
+    export class OIDCConnectorV3List {
+        // OIDCConnectors is a list of OIDC connectors.
+        public OIDCConnectors: Array<types.OIDCConnectorV3> =
+            new Array<types.OIDCConnectorV3>();
 
-        // Decodes OIDCConnectorV2List from an ArrayBuffer
-        static decodeArrayBuffer(buf: ArrayBuffer): OIDCConnectorV2List {
-            return OIDCConnectorV2List.decode(new DataView(buf));
+        // Decodes OIDCConnectorV3List from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): OIDCConnectorV3List {
+            return OIDCConnectorV3List.decode(new DataView(buf));
         }
 
-        // Decodes OIDCConnectorV2List from a DataView
-        static decode(view: DataView): OIDCConnectorV2List {
+        // Decodes OIDCConnectorV3List from a DataView
+        static decode(view: DataView): OIDCConnectorV3List {
             const decoder = new __proto.Decoder(view);
-            const obj = new OIDCConnectorV2List();
+            const obj = new OIDCConnectorV3List();
 
             while (!decoder.eof()) {
                 const tag = decoder.tag();
@@ -20349,7 +22009,7 @@ export namespace types {
                     case 1: {
                         const length = decoder.uint32();
                         obj.OIDCConnectors.push(
-                            types.OIDCConnectorV2.decode(
+                            types.OIDCConnectorV3.decode(
                                 new DataView(
                                     decoder.view.buffer,
                                     decoder.pos + decoder.view.byteOffset,
@@ -20368,7 +22028,7 @@ export namespace types {
                 }
             }
             return obj;
-        } // decode OIDCConnectorV2List
+        } // decode OIDCConnectorV3List
 
         public size(): u32 {
             let size: u32 = 0;
@@ -20385,9 +22045,9 @@ export namespace types {
             return size;
         }
 
-        // Encodes OIDCConnectorV2List to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        // Encodes OIDCConnectorV3List to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -20395,8 +22055,8 @@ export namespace types {
             return view;
         }
 
-        // Encodes OIDCConnectorV2List to the Array<u8>
-        encode(
+        // Encodes OIDCConnectorV3List to the Array<u8>
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -20407,39 +22067,68 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.OIDCConnectors[n].encode(encoder);
+                    this.OIDCConnectors[n].encodeU8Array(encoder);
                 }
             }
 
             return buf;
-        } // encode OIDCConnectorV2List
-    } // OIDCConnectorV2List
+        } // encode OIDCConnectorV3List
+    } // OIDCConnectorV3List
 
-    export class OIDCConnectorSpecV2 {
+    /**
+     * OIDCConnectorSpecV3 is an OIDC connector specification.
+     *
+     *  It specifies configuration for Open ID Connect compatible external
+     *  identity provider: https://openid.net/specs/openid-connect-core-1_0.html
+     */
+    export class OIDCConnectorSpecV3 {
+        // IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
         public IssuerURL: string = "";
+        // ClientID is the id of the authentication client (Teleport Auth server).
         public ClientID: string = "";
+        // ClientSecret is used to authenticate the client.
         public ClientSecret: string = "";
+        /**
+         * RedirectURL is a URL that will redirect the client's browser
+         *  back to the identity provider after successful authentication.
+         *  This should match the URL on the Provider's side.
+         */
         public RedirectURL: string = "";
+        /**
+         * ACR is an Authentication Context Class Reference value. The meaning of the ACR
+         *  value is context-specific and varies for identity providers.
+         */
         public ACR: string = "";
+        // Provider is the external identity provider.
         public Provider: string = "";
+        // Display is the friendly name for this provider.
         public Display: string = "";
+        // Scope specifies additional scopes set by provider.
         public Scope: Array<string> = new Array<string>();
+        /**
+         * Prompt is an optional OIDC prompt. An empty string omits prompt.
+         *  If not specified, it defaults to select_account for backwards compatibility.
+         */
         public Prompt: string = "";
+        // ClaimsToRoles specifies a dynamic mapping from claims to roles.
         public ClaimsToRoles: Array<types.ClaimMapping> =
             new Array<types.ClaimMapping>();
+        // GoogleServiceAccountURI is a path to a google service account uri.
         public GoogleServiceAccountURI: string = "";
+        // GoogleServiceAccount is a string containing google service account credentials.
         public GoogleServiceAccount: string = "";
+        // GoogleAdminEmail is the email of a google admin to impersonate.
         public GoogleAdminEmail: string = "";
 
-        // Decodes OIDCConnectorSpecV2 from an ArrayBuffer
-        static decodeArrayBuffer(buf: ArrayBuffer): OIDCConnectorSpecV2 {
-            return OIDCConnectorSpecV2.decode(new DataView(buf));
+        // Decodes OIDCConnectorSpecV3 from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): OIDCConnectorSpecV3 {
+            return OIDCConnectorSpecV3.decode(new DataView(buf));
         }
 
-        // Decodes OIDCConnectorSpecV2 from a DataView
-        static decode(view: DataView): OIDCConnectorSpecV2 {
+        // Decodes OIDCConnectorSpecV3 from a DataView
+        static decode(view: DataView): OIDCConnectorSpecV3 {
             const decoder = new __proto.Decoder(view);
-            const obj = new OIDCConnectorSpecV2();
+            const obj = new OIDCConnectorSpecV3();
 
             while (!decoder.eof()) {
                 const tag = decoder.tag();
@@ -20516,7 +22205,7 @@ export namespace types {
                 }
             }
             return obj;
-        } // decode OIDCConnectorSpecV2
+        } // decode OIDCConnectorSpecV3
 
         public size(): u32 {
             let size: u32 = 0;
@@ -20606,9 +22295,9 @@ export namespace types {
             return size;
         }
 
-        // Encodes OIDCConnectorSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        // Encodes OIDCConnectorSpecV3 to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -20616,8 +22305,8 @@ export namespace types {
             return view;
         }
 
-        // Encodes OIDCConnectorSpecV2 to the Array<u8>
-        encode(
+        // Encodes OIDCConnectorSpecV3 to the Array<u8>
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -20678,7 +22367,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    this.ClaimsToRoles[n].encode(encoder);
+                    this.ClaimsToRoles[n].encodeU8Array(encoder);
                 }
             }
 
@@ -20699,14 +22388,20 @@ export namespace types {
             }
 
             return buf;
-        } // encode OIDCConnectorSpecV2
-    } // OIDCConnectorSpecV2
+        } // encode OIDCConnectorSpecV3
+    } // OIDCConnectorSpecV3
 
+    // SAMLConnectorV2 represents a SAML connector.
     export class SAMLConnectorV2 {
+        // Kind is a resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources.
         public SubKind: string = "";
+        // Version is a resource version.
         public Version: string = "";
+        // Metadata holds resource metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is an SAML connector specification.
         public Spec: types.SAMLConnectorSpecV2 =
             new types.SAMLConnectorSpecV2();
 
@@ -20819,8 +22514,8 @@ export namespace types {
         }
 
         // Encodes SAMLConnectorV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -20829,7 +22524,7 @@ export namespace types {
         }
 
         // Encodes SAMLConnectorV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -20858,7 +22553,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -20870,7 +22565,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -20878,7 +22573,9 @@ export namespace types {
         } // encode SAMLConnectorV2
     } // SAMLConnectorV2
 
+    // SAMLConnectorV2List is a list of SAML connectors.
     export class SAMLConnectorV2List {
+        // SAMLConnectors is a list of SAML connectors.
         public SAMLConnectors: Array<types.SAMLConnectorV2> =
             new Array<types.SAMLConnectorV2>();
 
@@ -20937,8 +22634,8 @@ export namespace types {
         }
 
         // Encodes SAMLConnectorV2List to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -20947,7 +22644,7 @@ export namespace types {
         }
 
         // Encodes SAMLConnectorV2List to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -20958,7 +22655,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.SAMLConnectors[n].encode(encoder);
+                    this.SAMLConnectors[n].encodeU8Array(encoder);
                 }
             }
 
@@ -20966,21 +22663,44 @@ export namespace types {
         } // encode SAMLConnectorV2List
     } // SAMLConnectorV2List
 
+    // SAMLConnectorSpecV2 is a SAML connector specification.
     export class SAMLConnectorSpecV2 {
+        // Issuer is the identity provider issuer.
         public Issuer: string = "";
+        // SSO is the URL of the identity provider's SSO service.
         public SSO: string = "";
+        /**
+         * Cert is the identity provider certificate PEM.
+         *  IDP signs <Response> responses using this certificate.
+         */
         public Cert: string = "";
+        // Display controls how this connector is displayed.
         public Display: string = "";
+        /**
+         * AssertionConsumerService is a URL for assertion consumer service
+         *  on the service provider (Teleport's side).
+         */
         public AssertionConsumerService: string = "";
+        // Audience uniquely identifies our service provider.
         public Audience: string = "";
+        // ServiceProviderIssuer is the issuer of the service provider (Teleport).
         public ServiceProviderIssuer: string = "";
+        /**
+         * EntityDescriptor is XML with descriptor. It can be used to supply configuration
+         *  parameters in one XML file rather than supplying them in the individual elements.
+         */
         public EntityDescriptor: string = "";
+        // EntityDescriptorURL is a URL that supplies a configuration XML.
         public EntityDescriptorURL: string = "";
+        // AttributesToRoles is a list of mappings of attribute statements to roles.
         public AttributesToRoles: Array<types.AttributeMapping> =
             new Array<types.AttributeMapping>();
+        // SigningKeyPair is an x509 key pair used to sign AuthnRequest.
         public SigningKeyPair: types.AsymmetricKeyPair =
             new types.AsymmetricKeyPair();
+        // Provider is the external identity provider.
         public Provider: string = "";
+        // EncryptionKeyPair is a key pair used for decrypting SAML assertions.
         public EncryptionKeyPair: types.AsymmetricKeyPair =
             new types.AsymmetricKeyPair();
 
@@ -21193,8 +22913,8 @@ export namespace types {
         }
 
         // Encodes SAMLConnectorSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -21203,7 +22923,7 @@ export namespace types {
         }
 
         // Encodes SAMLConnectorSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -21260,7 +22980,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    this.AttributesToRoles[n].encode(encoder);
+                    this.AttributesToRoles[n].encodeU8Array(encoder);
                 }
             }
 
@@ -21272,7 +22992,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x5a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -21290,7 +23010,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x6a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -21298,9 +23018,13 @@ export namespace types {
         } // encode SAMLConnectorSpecV2
     } // SAMLConnectorSpecV2
 
+    // AttributeMapping maps a SAML attribute statement to teleport roles.
     export class AttributeMapping {
+        // Name is an attribute statement name.
         public Name: string = "";
+        // Value is an attribute statement value to match.
         public Value: string = "";
+        // Roles is a list of static teleport roles to map to.
         public Roles: Array<string> = new Array<string>();
 
         // Decodes AttributeMapping from an ArrayBuffer
@@ -21361,8 +23085,8 @@ export namespace types {
         }
 
         // Encodes AttributeMapping to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -21371,7 +23095,7 @@ export namespace types {
         }
 
         // Encodes AttributeMapping to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -21399,8 +23123,14 @@ export namespace types {
         } // encode AttributeMapping
     } // AttributeMapping
 
+    /**
+     * AsymmetricKeyPair is a combination of a public certificate and
+     *  private key that can be used for encryption and signing.
+     */
     export class AsymmetricKeyPair {
+        // PrivateKey is a PEM encoded x509 private key.
         public PrivateKey: string = "";
+        // Cert is a PEM-encoded x509 certificate.
         public Cert: string = "";
 
         // Decodes AsymmetricKeyPair from an ArrayBuffer
@@ -21455,8 +23185,8 @@ export namespace types {
         }
 
         // Encodes AsymmetricKeyPair to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -21465,7 +23195,7 @@ export namespace types {
         }
 
         // Encodes AsymmetricKeyPair to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -21485,11 +23215,17 @@ export namespace types {
         } // encode AsymmetricKeyPair
     } // AsymmetricKeyPair
 
+    // GithubConnectorV3 represents a Github connector.
     export class GithubConnectorV3 {
+        // Kind is a resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources.
         public SubKind: string = "";
+        // Version is a resource version.
         public Version: string = "";
+        // Metadata holds resource metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is an Github connector specification.
         public Spec: types.GithubConnectorSpecV3 =
             new types.GithubConnectorSpecV3();
 
@@ -21602,8 +23338,8 @@ export namespace types {
         }
 
         // Encodes GithubConnectorV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -21612,7 +23348,7 @@ export namespace types {
         }
 
         // Encodes GithubConnectorV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -21641,7 +23377,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -21653,7 +23389,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -21661,7 +23397,9 @@ export namespace types {
         } // encode GithubConnectorV3
     } // GithubConnectorV3
 
+    // GithubConnectorV3List is a list of Github connectors.
     export class GithubConnectorV3List {
+        // GithubConnectors is a list of Github connectors.
         public GithubConnectors: Array<types.GithubConnectorV3> =
             new Array<types.GithubConnectorV3>();
 
@@ -21720,8 +23458,8 @@ export namespace types {
         }
 
         // Encodes GithubConnectorV3List to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -21730,7 +23468,7 @@ export namespace types {
         }
 
         // Encodes GithubConnectorV3List to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -21741,7 +23479,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.GithubConnectors[n].encode(encoder);
+                    this.GithubConnectors[n].encodeU8Array(encoder);
                 }
             }
 
@@ -21749,12 +23487,18 @@ export namespace types {
         } // encode GithubConnectorV3List
     } // GithubConnectorV3List
 
+    // GithubConnectorSpecV3 is a Github connector specification.
     export class GithubConnectorSpecV3 {
+        // ClientID is the Github OAuth app client ID.
         public ClientID: string = "";
+        // ClientSecret is the Github OAuth app client secret.
         public ClientSecret: string = "";
+        // RedirectURL is the authorization callback URL.
         public RedirectURL: string = "";
+        // TeamsToLogins maps Github team memberships onto allowed logins/roles.
         public TeamsToLogins: Array<types.TeamMapping> =
             new Array<types.TeamMapping>();
+        // Display is the connector display name.
         public Display: string = "";
 
         // Decodes GithubConnectorSpecV3 from an ArrayBuffer
@@ -21854,8 +23598,8 @@ export namespace types {
         }
 
         // Encodes GithubConnectorSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -21864,7 +23608,7 @@ export namespace types {
         }
 
         // Encodes GithubConnectorSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -21891,7 +23635,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    this.TeamsToLogins[n].encode(encoder);
+                    this.TeamsToLogins[n].encodeU8Array(encoder);
                 }
             }
 
@@ -21905,11 +23649,17 @@ export namespace types {
         } // encode GithubConnectorSpecV3
     } // GithubConnectorSpecV3
 
+    // TeamMapping represents a single team membership mapping.
     export class TeamMapping {
+        // Organization is a Github organization a user belongs to.
         public Organization: string = "";
+        // Team is a team within the organization a user belongs to.
         public Team: string = "";
+        // Logins is a list of allowed logins for this org/team.
         public Logins: Array<string> = new Array<string>();
+        // KubeGroups is a list of allowed kubernetes groups for this org/team.
         public KubeGroups: Array<string> = new Array<string>();
+        // KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.
         public KubeUsers: Array<string> = new Array<string>();
 
         // Decodes TeamMapping from an ArrayBuffer
@@ -21982,8 +23732,8 @@ export namespace types {
         }
 
         // Encodes TeamMapping to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -21992,7 +23742,7 @@ export namespace types {
         }
 
         // Encodes TeamMapping to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -22036,11 +23786,17 @@ export namespace types {
         } // encode TeamMapping
     } // TeamMapping
 
+    // TrustedClusterV2 represents a Trusted Cluster.
     export class TrustedClusterV2 {
+        // Kind is a resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources.
         public SubKind: string = "";
+        // Version is a resource version.
         public Version: string = "";
+        // Metadata holds resource metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a Trusted Cluster specification.
         public Spec: types.TrustedClusterSpecV2 =
             new types.TrustedClusterSpecV2();
 
@@ -22153,8 +23909,8 @@ export namespace types {
         }
 
         // Encodes TrustedClusterV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -22163,7 +23919,7 @@ export namespace types {
         }
 
         // Encodes TrustedClusterV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -22192,7 +23948,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -22204,7 +23960,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -22212,7 +23968,9 @@ export namespace types {
         } // encode TrustedClusterV2
     } // TrustedClusterV2
 
+    // TrustedClusterV2List is a list of trusted cluster.
     export class TrustedClusterV2List {
+        // TrustedClusters is a list of trusted cluster.
         public TrustedClusters: Array<types.TrustedClusterV2> =
             new Array<types.TrustedClusterV2>();
 
@@ -22271,8 +24029,8 @@ export namespace types {
         }
 
         // Encodes TrustedClusterV2List to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -22281,7 +24039,7 @@ export namespace types {
         }
 
         // Encodes TrustedClusterV2List to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -22292,7 +24050,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.TrustedClusters[n].encode(encoder);
+                    this.TrustedClusters[n].encodeU8Array(encoder);
                 }
             }
 
@@ -22300,12 +24058,29 @@ export namespace types {
         } // encode TrustedClusterV2List
     } // TrustedClusterV2List
 
+    // TrustedClusterSpecV2 is a Trusted Cluster specification.
     export class TrustedClusterSpecV2 {
+        /**
+         * Enabled is a bool that indicates if the TrustedCluster is enabled or disabled.
+         *  Setting Enabled to false has a side effect of deleting the user and host certificate
+         *  authority (CA).
+         */
         public Enabled: bool;
+        // Roles is a list of roles that users will be assuming when connecting to this cluster.
         public Roles: Array<string> = new Array<string>();
+        // Token is the authorization token provided by another cluster needed by this cluster to join.
         public Token: string = "";
+        /**
+         * ProxyAddress is the address of the web proxy server of the cluster to join. If not set,
+         *  it is derived from <metadata.name>:<default web proxy server port>.
+         */
         public ProxyAddress: string = "";
+        /**
+         * ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If
+         *  not set, it is derived from <metadata.name>:<default reverse tunnel port>.
+         */
         public ReverseTunnelAddress: string = "";
+        // RoleMap specifies role mappings to remote roles.
         public RoleMap: Array<types.RoleMapping> =
             new Array<types.RoleMapping>();
 
@@ -22407,8 +24182,8 @@ export namespace types {
         }
 
         // Encodes TrustedClusterSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -22417,7 +24192,7 @@ export namespace types {
         }
 
         // Encodes TrustedClusterSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -22457,7 +24232,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    this.RoleMap[n].encode(encoder);
+                    this.RoleMap[n].encodeU8Array(encoder);
                 }
             }
 
@@ -22465,11 +24240,22 @@ export namespace types {
         } // encode TrustedClusterSpecV2
     } // TrustedClusterSpecV2
 
+    /**
+     * LockV2 represents a lock.
+     *  Locks are used to restrict access to a Teleport environment by disabling
+     *  interactions involving a user, an RBAC role, a node, etc.
+     *  See rfd/0009-locking.md for more details.
+     */
     export class LockV2 {
+        // Kind is a resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource sub kind, used in some resources.
         public SubKind: string = "";
+        // Version is a resource version.
         public Version: string = "";
+        // Metadata holds resource metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is a Lock specification.
         public Spec: types.LockSpecV2 = new types.LockSpecV2();
 
         // Decodes LockV2 from an ArrayBuffer
@@ -22580,8 +24366,8 @@ export namespace types {
         }
 
         // Encodes LockV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -22590,7 +24376,7 @@ export namespace types {
         }
 
         // Encodes LockV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -22619,7 +24405,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -22631,7 +24417,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -22639,9 +24425,13 @@ export namespace types {
         } // encode LockV2
     } // LockV2
 
+    // LockSpecV2 is a Lock specification.
     export class LockSpecV2 {
+        // Target describes the set of interactions that the lock applies to.
         public Target: types.LockTarget = new types.LockTarget();
+        // Message is the message displayed to locked-out users.
         public Message: string = "";
+        // Expires if set specifies when the lock ceases to be in force.
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
 
@@ -22734,8 +24524,8 @@ export namespace types {
         }
 
         // Encodes LockSpecV2 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -22744,7 +24534,7 @@ export namespace types {
         }
 
         // Encodes LockSpecV2 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -22757,7 +24547,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -22775,7 +24565,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -22783,12 +24573,28 @@ export namespace types {
         } // encode LockSpecV2
     } // LockSpecV2
 
+    // LockTarget lists the attributes of interactions to be disabled.
     export class LockTarget {
+        // User specifies the name of a Teleport user.
         public User: string = "";
+        /**
+         * Role specifies the name of an RBAC role known to the root cluster.
+         *  In remote clusters, this constraint is evaluated before translating to local roles.
+         */
         public Role: string = "";
+        // Login specifies the name of a local UNIX user.
         public Login: string = "";
+        /**
+         * Node specifies the UUID of a Teleport node.
+         *  A matching node is also prevented from heartbeating to the auth server.
+         */
         public Node: string = "";
+        // MFADevice specifies the UUID of a user MFA device.
         public MFADevice: string = "";
+        // WindowsDesktop specifies the name of a Windows desktop.
+        public WindowsDesktop: string = "";
+        // AccessRequest specifies the UUID of an access request.
+        public AccessRequest: string = "";
 
         // Decodes LockTarget from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): LockTarget {
@@ -22823,6 +24629,14 @@ export namespace types {
                     }
                     case 5: {
                         obj.MFADevice = decoder.string();
+                        break;
+                    }
+                    case 6: {
+                        obj.WindowsDesktop = decoder.string();
+                        break;
+                    }
+                    case 7: {
+                        obj.AccessRequest = decoder.string();
                         break;
                     }
 
@@ -22867,13 +24681,25 @@ export namespace types {
                       __proto.Sizer.varint64(this.MFADevice.length) +
                       this.MFADevice.length
                     : 0;
+            size +=
+                this.WindowsDesktop.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.WindowsDesktop.length) +
+                      this.WindowsDesktop.length
+                    : 0;
+            size +=
+                this.AccessRequest.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.AccessRequest.length) +
+                      this.AccessRequest.length
+                    : 0;
 
             return size;
         }
 
         // Encodes LockTarget to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -22882,7 +24708,7 @@ export namespace types {
         }
 
         // Encodes LockTarget to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -22912,12 +24738,30 @@ export namespace types {
                 encoder.uint32(this.MFADevice.length);
                 encoder.string(this.MFADevice);
             }
+            if (this.WindowsDesktop.length > 0) {
+                encoder.uint32(0x32);
+                encoder.uint32(this.WindowsDesktop.length);
+                encoder.string(this.WindowsDesktop);
+            }
+            if (this.AccessRequest.length > 0) {
+                encoder.uint32(0x3a);
+                encoder.uint32(this.AccessRequest.length);
+                encoder.string(this.AccessRequest);
+            }
 
             return buf;
         } // encode LockTarget
     } // LockTarget
 
+    /**
+     * AddressCondition represents a set of addresses. Presently the addresses are specfied
+     *  exclusively in terms of IPv4/IPv6 ranges.
+     */
     export class AddressCondition {
+        /**
+         * CIDR is IPv4 or IPv6 address. Valid value are either CIDR ranges (e.g. "10.0.1.0/24",
+         *  "fe::/8") or a single IP address (e.g "10.1.2.3")
+         */
         public CIDR: string = "";
 
         // Decodes AddressCondition from an ArrayBuffer
@@ -22962,8 +24806,8 @@ export namespace types {
         }
 
         // Encodes AddressCondition to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -22972,7 +24816,7 @@ export namespace types {
         }
 
         // Encodes AddressCondition to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -22988,8 +24832,10 @@ export namespace types {
     } // AddressCondition
 
     export class NetworkRestrictionsSpecV4 {
+        // Allow lists the addresses that should be allowed.
         public Allow: Array<types.AddressCondition> =
             new Array<types.AddressCondition>();
+        // Deny lists the addresses that should be denied even if they're allowed by Allow condition.
         public Deny: Array<types.AddressCondition> =
             new Array<types.AddressCondition>();
 
@@ -23072,8 +24918,8 @@ export namespace types {
         }
 
         // Encodes NetworkRestrictionsSpecV4 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -23082,7 +24928,7 @@ export namespace types {
         }
 
         // Encodes NetworkRestrictionsSpecV4 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -23093,7 +24939,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.Allow[n].encode(encoder);
+                    this.Allow[n].encodeU8Array(encoder);
                 }
             }
 
@@ -23103,7 +24949,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    this.Deny[n].encode(encoder);
+                    this.Deny[n].encodeU8Array(encoder);
                 }
             }
 
@@ -23111,11 +24957,22 @@ export namespace types {
         } // encode NetworkRestrictionsSpecV4
     } // NetworkRestrictionsSpecV4
 
+    /**
+     * NetworkRestrictions specifies a list of addresses to restrict (block). The deny
+     *  list is checked first and the allow lists overrides it. Thus an empty allow
+     *  list does not mean that no addresses will be allowed, that will only be the
+     *  case if the deny list covers the whole address range.
+     */
     export class NetworkRestrictionsV4 {
+        // Kind is the network restrictions resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource subkind.
         public SubKind: string = "";
+        // Version is the resource version.
         public Version: string = "";
+        // Metadata is the network restrictions metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec contains the network restrictions data
         public Spec: types.NetworkRestrictionsSpecV4 =
             new types.NetworkRestrictionsSpecV4();
 
@@ -23228,8 +25085,8 @@ export namespace types {
         }
 
         // Encodes NetworkRestrictionsV4 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -23238,7 +25095,7 @@ export namespace types {
         }
 
         // Encodes NetworkRestrictionsV4 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -23267,7 +25124,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -23279,7 +25136,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -23287,8 +25144,11 @@ export namespace types {
         } // encode NetworkRestrictionsV4
     } // NetworkRestrictionsV4
 
+    // WindowsDesktopServiceV3 represents a windows desktop access service.
     export class WindowsDesktopServiceV3 {
+        // Header is the common resource header.
         public Header: types.ResourceHeader = new types.ResourceHeader();
+        // Spec is the windows desktop service spec.
         public Spec: types.WindowsDesktopServiceSpecV3 =
             new types.WindowsDesktopServiceSpecV3();
 
@@ -23371,8 +25231,8 @@ export namespace types {
         }
 
         // Encodes WindowsDesktopServiceV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -23381,7 +25241,7 @@ export namespace types {
         }
 
         // Encodes WindowsDesktopServiceV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -23394,7 +25254,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -23406,7 +25266,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -23414,8 +25274,11 @@ export namespace types {
         } // encode WindowsDesktopServiceV3
     } // WindowsDesktopServiceV3
 
+    // WindowsDesktopServiceSpecV3 is the windows desktop service spec.
     export class WindowsDesktopServiceSpecV3 {
+        // Addr is the address that this service can be reached at.
         public Addr: string = "";
+        // TeleportVersion is teleport binary version running this service.
         public TeleportVersion: string = "";
 
         // Decodes WindowsDesktopServiceSpecV3 from an ArrayBuffer
@@ -23472,8 +25335,8 @@ export namespace types {
         }
 
         // Encodes WindowsDesktopServiceSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -23482,7 +25345,7 @@ export namespace types {
         }
 
         // Encodes WindowsDesktopServiceSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -23502,8 +25365,11 @@ export namespace types {
         } // encode WindowsDesktopServiceSpecV3
     } // WindowsDesktopServiceSpecV3
 
+    // WindowsDesktopV3 represents a Windows host for desktop access.
     export class WindowsDesktopV3 {
+        // Header is the common resource header.
         public Header: types.ResourceHeader = new types.ResourceHeader();
+        // Spec is the Windows host spec.
         public Spec: types.WindowsDesktopSpecV3 =
             new types.WindowsDesktopSpecV3();
 
@@ -23586,8 +25452,8 @@ export namespace types {
         }
 
         // Encodes WindowsDesktopV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -23596,7 +25462,7 @@ export namespace types {
         }
 
         // Encodes WindowsDesktopV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -23609,7 +25475,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -23621,7 +25487,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -23629,8 +25495,11 @@ export namespace types {
         } // encode WindowsDesktopV3
     } // WindowsDesktopV3
 
+    // WindowsDesktopSpecV3 is the Windows host spec.
     export class WindowsDesktopSpecV3 {
+        // Addr is the address that this host can be reached at.
         public Addr: string = "";
+        // Domain is the ActiveDirectory domain that this host belongs to.
         public Domain: string = "";
 
         // Decodes WindowsDesktopSpecV3 from an ArrayBuffer
@@ -23685,8 +25554,8 @@ export namespace types {
         }
 
         // Encodes WindowsDesktopSpecV3 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -23695,7 +25564,7 @@ export namespace types {
         }
 
         // Encodes WindowsDesktopSpecV3 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -23715,16 +25584,43 @@ export namespace types {
         } // encode WindowsDesktopSpecV3
     } // WindowsDesktopSpecV3
 
+    /**
+     * RegisterUsingTokenRequest is a request to register with the auth server using
+     *  an authentication token
+     */
     export class RegisterUsingTokenRequest {
+        // HostID is a unique host ID, usually a UUID
         public HostID: string = "";
+        // NodeName is a node name
         public NodeName: string = "";
+        // Role is a system role, e.g. Proxy
         public Role: string = "";
+        // Token is the name of an authentication token
         public Token: string = "";
+        // AdditionalPrincipals is a list of additional principals
         public AdditionalPrincipals: Array<string> = new Array<string>();
+        // DNSNames is a list of DNS names to include in the x509 client certificate
         public DNSNames: Array<string> = new Array<string>();
+        /**
+         * PublicTLSKey is a PEM encoded public key
+         *  used for TLS setup
+         */
         public PublicTLSKey: Array<u8> = new Array<u8>();
+        /**
+         * PublicSSHKey is a SSH encoded public key,
+         *  if present will be signed as a return value
+         *  otherwise, new public/private key pair will be generated
+         */
         public PublicSSHKey: Array<u8> = new Array<u8>();
+        /**
+         * RemoteAddr is the remote address of the host requesting a host certificate.
+         *  It is used to replace 0.0.0.0 in the list of additional principals.
+         */
         public RemoteAddr: string = "";
+        /**
+         * EC2IdentityDocument is used for the EC2 join method to prove the identity
+         *  of a joining EC2 instance.
+         */
         public EC2IdentityDocument: Array<u8> = new Array<u8>();
 
         // Decodes RegisterUsingTokenRequest from an ArrayBuffer
@@ -23852,8 +25748,8 @@ export namespace types {
         }
 
         // Encodes RegisterUsingTokenRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -23862,7 +25758,7 @@ export namespace types {
         }
 
         // Encodes RegisterUsingTokenRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -23933,11 +25829,23 @@ export namespace types {
         } // encode RegisterUsingTokenRequest
     } // RegisterUsingTokenRequest
 
+    /**
+     * RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
+     *  access to their account by restoring their lost password or second factor. Once a recovery code
+     *  is successfully verified, the code is mark used (which invalidates it), and lets the user begin
+     *  the recovery flow. When a user successfully finishes the recovery flow, users will get a new set
+     *  of codes that will replace all the previous ones.
+     */
     export class RecoveryCodesV1 {
+        // Kind is the resource kind.
         public Kind: string = "";
+        // SubKind is an optional resource subkind. Currently unused for this resource.
         public SubKind: string = "";
+        // Version is the resource version.
         public Version: string = "";
+        // Metadata is the resource metadata.
         public Metadata: types.Metadata = new types.Metadata();
+        // Spec is the resource spec.
         public Spec: types.RecoveryCodesSpecV1 =
             new types.RecoveryCodesSpecV1();
 
@@ -24050,8 +25958,8 @@ export namespace types {
         }
 
         // Encodes RecoveryCodesV1 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -24060,7 +25968,7 @@ export namespace types {
         }
 
         // Encodes RecoveryCodesV1 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -24089,7 +25997,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -24101,7 +26009,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -24109,9 +26017,15 @@ export namespace types {
         } // encode RecoveryCodesV1
     } // RecoveryCodesV1
 
+    // RecoveryCodesSpecV1 is the recovery codes spec.
     export class RecoveryCodesSpecV1 {
+        // Codes hold a list of numOfRecoveryCodes.
         public Codes: Array<types.RecoveryCode> =
             new Array<types.RecoveryCode>();
+        /**
+         * Created is when the set of recovery codes were generated. Updated when a new set of recovery
+         *  codes are inserted.
+         */
         public Created: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
 
@@ -24194,8 +26108,8 @@ export namespace types {
         }
 
         // Encodes RecoveryCodesSpecV1 to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -24204,7 +26118,7 @@ export namespace types {
         }
 
         // Encodes RecoveryCodesSpecV1 to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -24215,7 +26129,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    this.Codes[n].encode(encoder);
+                    this.Codes[n].encodeU8Array(encoder);
                 }
             }
 
@@ -24227,7 +26141,7 @@ export namespace types {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -24235,8 +26149,11 @@ export namespace types {
         } // encode RecoveryCodesSpecV1
     } // RecoveryCodesSpecV1
 
+    // RecoveryCode describes a recovery code.
     export class RecoveryCode {
+        // HashedCode is a bcrypt hash of this recovery code.
         public HashedCode: Array<u8> = new Array<u8>();
+        // IsUsed determines if this recovery code was used.
         public IsUsed: bool;
 
         // Decodes RecoveryCode from an ArrayBuffer
@@ -24286,8 +26203,8 @@ export namespace types {
         }
 
         // Encodes RecoveryCode to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -24296,7 +26213,7 @@ export namespace types {
         }
 
         // Encodes RecoveryCode to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -24316,17 +26233,25 @@ export namespace types {
     } // RecoveryCode
 } // types
 export namespace events {
+    // Action communicates what was done in response to the event
     export enum EventAction {
         OBSERVED = 0,
         DENIED = 1,
     } // EventAction
+    // Metadata is a common event metadata
     export class Metadata {
+        // Index is a monotonicaly incremented index in the event sequence
         public Index: i64;
+        // Type is the event type
         public Type: string = "";
+        // ID is a unique event identifier
         public ID: string = "";
+        // Code is a unique event code
         public Code: string = "";
+        // Time is event time
         public Time: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // ClusterName identifies the originating teleport cluster
         public ClusterName: string = "";
 
         // Decodes Metadata from an ArrayBuffer
@@ -24431,8 +26356,8 @@ export namespace events {
         }
 
         // Encodes Metadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -24441,7 +26366,7 @@ export namespace events {
         }
 
         // Encodes Metadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -24474,7 +26399,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -24488,8 +26413,11 @@ export namespace events {
         } // encode Metadata
     } // Metadata
 
+    // SessionData is emitted to report session data usage.
     export class SessionMetadata {
+        // SessionID is a unique UUID of the session.
         public SessionID: string = "";
+        // WithMFA is a UUID of an MFA device used to start this session.
         public WithMFA: string = "";
 
         // Decodes SessionMetadata from an ArrayBuffer
@@ -24544,8 +26472,8 @@ export namespace events {
         }
 
         // Encodes SessionMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -24554,7 +26482,7 @@ export namespace events {
         }
 
         // Encodes SessionMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -24574,11 +26502,18 @@ export namespace events {
         } // encode SessionMetadata
     } // SessionMetadata
 
+    // X11Forward is emitted when a user requests X11 protocol forwarding
     export class UserMetadata {
+        // User is teleport user name
         public User: string = "";
+        // Login is OS login
         public Login: string = "";
+        // Impersonator is a user acting on behalf of another user
         public Impersonator: string = "";
+        // AWSRoleARN is AWS IAM role user assumes when accessing AWS console.
         public AWSRoleARN: string = "";
+        // AccessRequests are the IDs of access requests created by the user
+        public AccessRequests: Array<string> = new Array<string>();
 
         // Decodes UserMetadata from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): UserMetadata {
@@ -24609,6 +26544,10 @@ export namespace events {
                     }
                     case 4: {
                         obj.AWSRoleARN = decoder.string();
+                        break;
+                    }
+                    case 5: {
+                        obj.AccessRequests.push(decoder.string());
                         break;
                     }
 
@@ -24648,12 +26587,14 @@ export namespace events {
                       this.AWSRoleARN.length
                     : 0;
 
+            size += __size_string_repeated(this.AccessRequests);
+
             return size;
         }
 
         // Encodes UserMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -24662,7 +26603,7 @@ export namespace events {
         }
 
         // Encodes UserMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -24688,15 +26629,32 @@ export namespace events {
                 encoder.string(this.AWSRoleARN);
             }
 
+            if (this.AccessRequests.length > 0) {
+                for (let n: i32 = 0; n < this.AccessRequests.length; n++) {
+                    encoder.uint32(0x2a);
+                    encoder.uint32(this.AccessRequests[n].length);
+                    encoder.string(this.AccessRequests[n]);
+                }
+            }
+
             return buf;
         } // encode UserMetadata
     } // UserMetadata
 
+    // TrustedClusterCreate is the event for creating a trusted cluster.
     export class ServerMetadata {
+        // ServerNamespace is a namespace of the server event
         public ServerNamespace: string = "";
+        // ServerID is the UUID of the server the session occurred on.
         public ServerID: string = "";
+        // ServerHostname is the hostname of the server the session occurred on.
         public ServerHostname: string = "";
+        // ServerAddr is the address of the server the session occurred on.
         public ServerAddr: string = "";
+        /**
+         * ServerLabels are the labels (static and dynamic) of the server the
+         *  session occurred on.
+         */
         public ServerLabels: Map<string, string> = new Map<string, string>();
 
         // Decodes ServerMetadata from an ArrayBuffer
@@ -24795,8 +26753,8 @@ export namespace events {
         }
 
         // Encodes ServerMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -24805,7 +26763,7 @@ export namespace events {
         }
 
         // Encodes ServerMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -24858,9 +26816,13 @@ export namespace events {
         } // encode ServerMetadata
     } // ServerMetadata
 
+    // AppMetadata contains common application information.
     export class ConnectionMetadata {
+        // LocalAddr is a target address on the host
         public LocalAddr: string = "";
+        // RemoteAddr is a client (user's) address
         public RemoteAddr: string = "";
+        // Protocol specifies protocol that was captured
         public Protocol: string = "";
 
         // Decodes ConnectionMetadata from an ArrayBuffer
@@ -24925,8 +26887,8 @@ export namespace events {
         }
 
         // Encodes ConnectionMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -24935,7 +26897,7 @@ export namespace events {
         }
 
         // Encodes ConnectionMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -24960,9 +26922,13 @@ export namespace events {
         } // encode ConnectionMetadata
     } // ConnectionMetadata
 
+    // DatabaseDelete is emitted when a database resource is deleted.
     export class KubernetesClusterMetadata {
+        // KubernetesCluster is a kubernetes cluster name.
         public KubernetesCluster: string = "";
+        // KubernetesUsers is a list of kubernetes usernames for the user.
         public KubernetesUsers: Array<string> = new Array<string>();
+        // KubernetesGroups is a list of kubernetes groups for the user.
         public KubernetesGroups: Array<string> = new Array<string>();
 
         // Decodes KubernetesClusterMetadata from an ArrayBuffer
@@ -25019,8 +26985,8 @@ export namespace events {
         }
 
         // Encodes KubernetesClusterMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -25029,7 +26995,7 @@ export namespace events {
         }
 
         // Encodes KubernetesClusterMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -25060,11 +27026,17 @@ export namespace events {
         } // encode KubernetesClusterMetadata
     } // KubernetesClusterMetadata
 
+    // BillingCardDelete is emitted when a user deletes a credit card.
     export class KubernetesPodMetadata {
+        // KubernetesPodName is the name of the pod.
         public KubernetesPodName: string = "";
+        // KubernetesPodNamespace is the namespace of the pod.
         public KubernetesPodNamespace: string = "";
+        // KubernetesContainerName is the name of the container within the pod.
         public KubernetesContainerName: string = "";
+        // KubernetesContainerImage is the image of the container within the pod.
         public KubernetesContainerImage: string = "";
+        // KubernetesNodeName is the node that runs the pod.
         public KubernetesNodeName: string = "";
 
         // Decodes KubernetesPodMetadata from an ArrayBuffer
@@ -25155,8 +27127,8 @@ export namespace events {
         }
 
         // Encodes KubernetesPodMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -25165,7 +27137,7 @@ export namespace events {
         }
 
         // Encodes KubernetesPodMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -25200,21 +27172,40 @@ export namespace events {
         } // encode KubernetesPodMetadata
     } // KubernetesPodMetadata
 
+    /**
+     * Identity matches github.com/gravitational/teleport/lib/tlsca.Identity except
+     *  for RouteToApp and RouteToDatabase which are nullable and Traits which is
+     *  represented as a google.protobuf.Struct (still containing a map from string
+     *  to strings). Field names match other names already used in other events
+     *  rather than the field names in tlsca.Identity.
+     */
     export class SessionStart {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // TerminalSize is expressed as 'W:H'
         public TerminalSize: string = "";
+        /**
+         * KubernetesCluster has information about a kubernetes cluster, if
+         *  applicable.
+         */
         public KubernetesCluster: events.KubernetesClusterMetadata =
             new events.KubernetesClusterMetadata();
+        // KubernetesPod has information about a kubernetes pod, if applicable.
         public KubernetesPod: events.KubernetesPodMetadata =
             new events.KubernetesPodMetadata();
+        // InitialCommand is the command used to start this session.
         public InitialCommand: Array<string> = new Array<string>();
+        // SessionRecording is the type of session recording.
         public SessionRecording: string = "";
-        public AccessRequests: Array<string> = new Array<string>();
 
         // Decodes SessionStart from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): SessionStart {
@@ -25335,10 +27326,6 @@ export namespace events {
                         obj.SessionRecording = decoder.string();
                         break;
                     }
-                    case 11: {
-                        obj.AccessRequests.push(decoder.string());
-                        break;
-                    }
 
                     default:
                         decoder.skipType(tag & 7);
@@ -25442,14 +27429,12 @@ export namespace events {
                       this.SessionRecording.length
                     : 0;
 
-            size += __size_string_repeated(this.AccessRequests);
-
             return size;
         }
 
         // Encodes SessionStart to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -25458,7 +27443,7 @@ export namespace events {
         }
 
         // Encodes SessionStart to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -25471,7 +27456,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25483,7 +27468,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25495,7 +27480,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25507,7 +27492,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25519,7 +27504,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25538,7 +27523,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25550,7 +27535,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25568,25 +27553,27 @@ export namespace events {
                 encoder.string(this.SessionRecording);
             }
 
-            if (this.AccessRequests.length > 0) {
-                for (let n: i32 = 0; n < this.AccessRequests.length; n++) {
-                    encoder.uint32(0x5a);
-                    encoder.uint32(this.AccessRequests[n].length);
-                    encoder.string(this.AccessRequests[n]);
-                }
-            }
-
             return buf;
         } // encode SessionStart
     } // SessionStart
 
+    // RouteToDatabase combines parameters for database service routing information.
     export class SessionJoin {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        /**
+         * KubernetesCluster has information about a kubernetes cluster, if
+         *  applicable.
+         */
         public KubernetesCluster: events.KubernetesClusterMetadata =
             new events.KubernetesClusterMetadata();
 
@@ -25764,8 +27751,8 @@ export namespace events {
         }
 
         // Encodes SessionJoin to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -25774,7 +27761,7 @@ export namespace events {
         }
 
         // Encodes SessionJoin to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -25787,7 +27774,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25799,7 +27786,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25811,7 +27798,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25823,7 +27810,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25835,7 +27822,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25848,7 +27835,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -25856,12 +27843,25 @@ export namespace events {
         } // encode SessionJoin
     } // SessionJoin
 
+    /**
+     * SessionPrint event happens every time a write occurs to
+     *  temirnal I/O during a session
+     */
     export class SessionPrint {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ChunkIndex is a monotonicaly incremented index for ordering print events
         public ChunkIndex: i64;
+        // Data is data transferred, it is not marshaled to JSON format
         public Data: Array<u8> = new Array<u8>();
+        /**
+         * Bytes says how many bytes have been written into the session
+         *  during "print" event
+         */
         public Bytes: i64;
+        // DelayMilliseconds is the delay in milliseconds from the start of the session
         public DelayMilliseconds: i64;
+        // Offset is the offset in bytes in the session file
         public Offset: i64;
 
         // Decodes SessionPrint from an ArrayBuffer
@@ -25955,8 +27955,8 @@ export namespace events {
         }
 
         // Encodes SessionPrint to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -25965,7 +27965,7 @@ export namespace events {
         }
 
         // Encodes SessionPrint to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -25978,7 +27978,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26008,13 +28008,26 @@ export namespace events {
         } // encode SessionPrint
     } // SessionPrint
 
+    // SessionReject event happens when a user hits a session control restriction.
     export class SessionReject {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        /**
+         * Reason is a field that specifies reason for event, e.g. in disconnect
+         *  event it explains why server disconnected the client
+         */
         public Reason: string = "";
+        /**
+         * Maximum is an event field specifying a maximal value (e.g. the value
+         *  of `max_connections` for a `session.rejected` event).
+         */
         public Maximum: i64;
 
         // Decodes SessionReject from an ArrayBuffer
@@ -26159,8 +28172,8 @@ export namespace events {
         }
 
         // Encodes SessionReject to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -26169,7 +28182,7 @@ export namespace events {
         }
 
         // Encodes SessionReject to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -26182,7 +28195,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26194,7 +28207,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26206,7 +28219,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26218,7 +28231,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26236,16 +28249,192 @@ export namespace events {
         } // encode SessionReject
     } // SessionReject
 
-    export class Resize {
+    // SessionConnect is emitted when a non-Teleport connection is made over net.Dial.
+    export class SessionConnect {
         public Metadata: events.Metadata = new events.Metadata();
-        public User: events.UserMetadata = new events.UserMetadata();
-        public Session: events.SessionMetadata = new events.SessionMetadata();
+        public Server: events.ServerMetadata = new events.ServerMetadata();
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+
+        // Decodes SessionConnect from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): SessionConnect {
+            return SessionConnect.decode(new DataView(buf));
+        }
+
+        // Decodes SessionConnect from a DataView
+        static decode(view: DataView): SessionConnect {
+            const decoder = new __proto.Decoder(view);
+            const obj = new SessionConnect();
+
+            while (!decoder.eof()) {
+                const tag = decoder.tag();
+                const number = tag >>> 3;
+
+                switch (number) {
+                    case 1: {
+                        const length = decoder.uint32();
+                        obj.Metadata = events.Metadata.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 2: {
+                        const length = decoder.uint32();
+                        obj.Server = events.ServerMetadata.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 3: {
+                        const length = decoder.uint32();
+                        obj.Connection = events.ConnectionMetadata.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+
+                    default:
+                        decoder.skipType(tag & 7);
+                        break;
+                }
+            }
+            return obj;
+        } // decode SessionConnect
+
+        public size(): u32 {
+            let size: u32 = 0;
+
+            if (this.Metadata != null) {
+                const f: events.Metadata = this.Metadata as events.Metadata;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            if (this.Server != null) {
+                const f: events.ServerMetadata = this
+                    .Server as events.ServerMetadata;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            if (this.Connection != null) {
+                const f: events.ConnectionMetadata = this
+                    .Connection as events.ConnectionMetadata;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            return size;
+        }
+
+        // Encodes SessionConnect to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
+            const view = new DataView(new ArrayBuffer(source.length));
+            for (let i: i32 = 0; i < source.length; i++) {
+                view.setUint8(i, source.at(i));
+            }
+            return view;
+        }
+
+        // Encodes SessionConnect to the Array<u8>
+        encodeU8Array(
+            encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
+        ): Array<u8> {
+            const buf = encoder.buf;
+
+            if (this.Metadata != null) {
+                const f = this.Metadata as events.Metadata;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0xa);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.Server != null) {
+                const f = this.Server as events.ServerMetadata;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x12);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.Connection != null) {
+                const f = this.Connection as events.ConnectionMetadata;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x1a);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            return buf;
+        } // encode SessionConnect
+    } // SessionConnect
+
+    // Resize means that some user resized PTY on the client
+    export class Resize {
+        // Metadata is a common event metadata
+        public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
+        public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
+        public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ConnectionMetadata holds information about the connection
+        public Connection: events.ConnectionMetadata =
+            new events.ConnectionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // TerminalSize is expressed as 'W:H'
         public TerminalSize: string = "";
+        /**
+         * KubernetesCluster has information about a kubernetes cluster, if
+         *  applicable.
+         */
         public KubernetesCluster: events.KubernetesClusterMetadata =
             new events.KubernetesClusterMetadata();
+        // KubernetesPod has information about a kubernetes pod, if applicable.
         public KubernetesPod: events.KubernetesPodMetadata =
             new events.KubernetesPodMetadata();
 
@@ -26458,8 +28647,8 @@ export namespace events {
         }
 
         // Encodes Resize to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -26468,7 +28657,7 @@ export namespace events {
         }
 
         // Encodes Resize to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -26481,7 +28670,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26493,7 +28682,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26505,7 +28694,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26517,7 +28706,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26529,7 +28718,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26548,7 +28737,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26560,7 +28749,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26568,25 +28757,49 @@ export namespace events {
         } // encode Resize
     } // Resize
 
+    // SessionEnd is a session end event
     export class SessionEnd {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        /**
+         * EnhancedRecording is used to indicate if the recording was an
+         *  enhanced recording or not.
+         */
         public EnhancedRecording: bool;
+        /**
+         * Interactive is used to indicate if the session was interactive
+         *  (has PTY attached) or not (exec session).
+         */
         public Interactive: bool;
+        // Participants is a list of participants in the session.
         public Participants: Array<string> = new Array<string>();
+        // StartTime is the timestamp at which the session began.
         public StartTime: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // EndTime is the timestamp at which the session ended.
         public EndTime: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        /**
+         * KubernetesCluster has information about a kubernetes cluster, if
+         *  applicable.
+         */
         public KubernetesCluster: events.KubernetesClusterMetadata =
             new events.KubernetesClusterMetadata();
+        // KubernetesPod has information about a kubernetes pod, if applicable.
         public KubernetesPod: events.KubernetesPodMetadata =
             new events.KubernetesPodMetadata();
+        // InitialCommand is the command used to start this session.
         public InitialCommand: Array<string> = new Array<string>();
+        // SessionRecording is the type of session recording.
         public SessionRecording: string = "";
 
         // Decodes SessionEnd from an ArrayBuffer
@@ -26869,8 +29082,8 @@ export namespace events {
         }
 
         // Encodes SessionEnd to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -26879,7 +29092,7 @@ export namespace events {
         }
 
         // Encodes SessionEnd to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -26892,7 +29105,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26904,7 +29117,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26916,7 +29129,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26928,7 +29141,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26940,7 +29153,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26969,7 +29182,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x4a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26981,7 +29194,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -26994,7 +29207,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x5a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27006,7 +29219,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x62);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27028,9 +29241,13 @@ export namespace events {
         } // encode SessionEnd
     } // SessionEnd
 
+    // BPFMetadata is a common BPF process metadata
     export class BPFMetadata {
+        // PID is the ID of the process.
         public PID: u64;
+        // CgroupID is the internal cgroupv2 ID of the event.
         public CgroupID: u64;
+        // Program is name of the executable.
         public Program: string = "";
 
         // Decodes BPFMetadata from an ArrayBuffer
@@ -27088,8 +29305,8 @@ export namespace events {
         }
 
         // Encodes BPFMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -27098,7 +29315,7 @@ export namespace events {
         }
 
         // Encodes BPFMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -27121,9 +29338,13 @@ export namespace events {
         } // encode BPFMetadata
     } // BPFMetadata
 
+    // Status contains common command or operation status fields
     export class Status {
+        // Success indicates the success or failure of the operation
         public Success: bool;
+        // Error includes system error message for the failed attempt
         public Error: string = "";
+        // UserMessage is a user-friendly message for successfull or unsuccessfull auth attempt
         public UserMessage: string = "";
 
         // Decodes Status from an ArrayBuffer
@@ -27183,8 +29404,8 @@ export namespace events {
         }
 
         // Encodes Status to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -27193,7 +29414,7 @@ export namespace events {
         }
 
         // Encodes Status to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -27217,15 +29438,28 @@ export namespace events {
         } // encode Status
     } // Status
 
+    // SessionCommand is a session command event
     export class SessionCommand {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // BPFMetadata is a common BPF subsystem metadata
         public BPF: events.BPFMetadata = new events.BPFMetadata();
+        // PPID is the PID of the parent process.
         public PPID: u64;
+        // Path is the full path to the executable.
         public Path: string = "";
+        /**
+         * Argv is the list of arguments to the program. Note, the first element does
+         *  not contain the name of the process.
+         */
         public Argv: Array<string> = new Array<string>();
+        // ReturnCode is the return code of execve.
         public ReturnCode: i32;
 
         // Decodes SessionCommand from an ArrayBuffer
@@ -27407,8 +29641,8 @@ export namespace events {
         }
 
         // Encodes SessionCommand to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -27417,7 +29651,7 @@ export namespace events {
         }
 
         // Encodes SessionCommand to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -27430,7 +29664,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27442,7 +29676,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27454,7 +29688,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27466,7 +29700,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27478,7 +29712,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27509,14 +29743,23 @@ export namespace events {
         } // encode SessionCommand
     } // SessionCommand
 
+    // SessionDisk is a session disk access event
     export class SessionDisk {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // BPFMetadata is a common BPF subsystem metadata
         public BPF: events.BPFMetadata = new events.BPFMetadata();
+        // Path is the full path to the executable.
         public Path: string = "";
+        // Flags are the flags passed to open.
         public Flags: i32;
+        // ReturnCode is the return code of disk open
         public ReturnCode: i32;
 
         // Decodes SessionDisk from an ArrayBuffer
@@ -27691,8 +29934,8 @@ export namespace events {
         }
 
         // Encodes SessionDisk to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -27701,7 +29944,7 @@ export namespace events {
         }
 
         // Encodes SessionDisk to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -27714,7 +29957,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27726,7 +29969,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27738,7 +29981,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27750,7 +29993,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27762,7 +30005,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -27784,17 +30027,29 @@ export namespace events {
         } // encode SessionDisk
     } // SessionDisk
 
+    // SessionNetwork is a network event
     export class SessionNetwork {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // BPFMetadata is a common BPF subsystem metadata
         public BPF: events.BPFMetadata = new events.BPFMetadata();
+        // SrcAddr is the source IP address of the connection.
         public SrcAddr: string = "";
+        // DstAddr is the destination IP address of the connection.
         public DstAddr: string = "";
+        // DstPort is the destination port of the connection.
         public DstPort: i32;
+        // TCPVersion is the version of TCP (4 or 6).
         public TCPVersion: i32;
+        // Operation denotes what network operation was performed (e.g. connect)
         public Operation: u32;
+        // Action denotes what happened in response to the event
         public Action: u32;
 
         // Decodes SessionNetwork from an ArrayBuffer
@@ -27994,8 +30249,8 @@ export namespace events {
         }
 
         // Encodes SessionNetwork to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -28004,7 +30259,7 @@ export namespace events {
         }
 
         // Encodes SessionNetwork to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -28017,7 +30272,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28029,7 +30284,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28041,7 +30296,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28053,7 +30308,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28065,7 +30320,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28100,18 +30355,29 @@ export namespace events {
         } // encode SessionNetwork
     } // SessionNetwork
 
+    // Operation is the network operation that was performed or attempted
     export enum SessionNetwork_NetworkOperation {
+        // TCP connection establishment or binding a UDP socket to a remote address
         CONNECT = 0,
+        // Transmission of data to a remote endpoint
         SEND = 1,
     } // SessionNetwork_NetworkOperation
+    // SessionData is emitted to report session data usage.
     export class SessionData {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // BytesTransmitted is the amount of bytes transmitted
         public BytesTransmitted: u64;
+        // BytesReceived is the amount of bytes received
         public BytesReceived: u64;
 
         // Decodes SessionData from an ArrayBuffer
@@ -28280,8 +30546,8 @@ export namespace events {
         }
 
         // Encodes SessionData to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -28290,7 +30556,7 @@ export namespace events {
         }
 
         // Encodes SessionData to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -28303,7 +30569,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28315,7 +30581,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28327,7 +30593,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28339,7 +30605,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28351,7 +30617,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28368,11 +30634,17 @@ export namespace events {
         } // encode SessionData
     } // SessionData
 
+    // SessionLeave is emitted to report that a user left the session
     export class SessionLeave {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
 
@@ -28525,8 +30797,8 @@ export namespace events {
         }
 
         // Encodes SessionLeave to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -28535,7 +30807,7 @@ export namespace events {
         }
 
         // Encodes SessionLeave to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -28548,7 +30820,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28560,7 +30832,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28572,7 +30844,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28584,7 +30856,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28596,7 +30868,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28604,13 +30876,20 @@ export namespace events {
         } // encode SessionLeave
     } // SessionLeave
 
+    // UserLogin records a successfull or failed user login event
     export class UserLogin {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // Status contains common command or operation status fields
         public Status: events.Status = new events.Status();
+        // Method is the event field indicating how the login was performed
         public Method: string = "";
+        // IdentityAttributes is a map of user attributes received from identity provider
         public IdentityAttributes: google.protobuf.Struct =
             new google.protobuf.Struct();
+        // MFA is the MFA device used during the login.
         public MFADevice: events.MFADeviceMetadata =
             new events.MFADeviceMetadata();
 
@@ -28773,8 +31052,8 @@ export namespace events {
         }
 
         // Encodes UserLogin to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -28783,7 +31062,7 @@ export namespace events {
         }
 
         // Encodes UserLogin to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -28796,7 +31075,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28808,7 +31087,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28820,7 +31099,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28838,7 +31117,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28850,7 +31129,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -28858,11 +31137,20 @@ export namespace events {
         } // encode UserLogin
     } // UserLogin
 
+    // ResourceMetadata is a common resource metadata
     export class ResourceMetadata {
+        // ResourceName is a resource name
         public Name: string = "";
+        // Expires is set if resource expires
         public Expires: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
+        // UpdatedBy if set indicates the user who modified the resource
         public UpdatedBy: string = "";
+        /**
+         * TTL is a TTL of reset password token represented as duration, e.g. "10m"
+         *  used for compatibility purposes for some events, Expires should be used instead
+         *  as it's more useful (contains exact expiration date/time)
+         */
         public TTL: string = "";
 
         // Decodes ResourceMetadata from an ArrayBuffer
@@ -28952,8 +31240,8 @@ export namespace events {
         }
 
         // Encodes ResourceMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -28962,7 +31250,7 @@ export namespace events {
         }
 
         // Encodes ResourceMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -28981,7 +31269,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29000,12 +31288,18 @@ export namespace events {
         } // encode ResourceMetadata
     } // ResourceMetadata
 
+    // UserCreate is emitted when the user is created or updated (upsert).
     export class UserCreate {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // Roles is a list of roles for the user.
         public Roles: Array<string> = new Array<string>();
+        // Connector is the connector used to create the user.
         public Connector: string = "";
 
         // Decodes UserCreate from an ArrayBuffer
@@ -29126,8 +31420,8 @@ export namespace events {
         }
 
         // Encodes UserCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -29136,7 +31430,7 @@ export namespace events {
         }
 
         // Encodes UserCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -29149,7 +31443,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29161,7 +31455,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29173,7 +31467,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29195,9 +31489,13 @@ export namespace events {
         } // encode UserCreate
     } // UserCreate
 
+    // UserDelete is emitted when a user gets deleted
     export class UserDelete {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
 
@@ -29302,8 +31600,8 @@ export namespace events {
         }
 
         // Encodes UserDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -29312,7 +31610,7 @@ export namespace events {
         }
 
         // Encodes UserDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -29325,7 +31623,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29337,7 +31635,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29349,7 +31647,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29357,8 +31655,11 @@ export namespace events {
         } // encode UserDelete
     } // UserDelete
 
+    // UserPasswordChange is emitted when the user changes their own password.
     export class UserPasswordChange {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes UserPasswordChange from an ArrayBuffer
@@ -29438,8 +31739,8 @@ export namespace events {
         }
 
         // Encodes UserPasswordChange to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -29448,7 +31749,7 @@ export namespace events {
         }
 
         // Encodes UserPasswordChange to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -29461,7 +31762,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29473,7 +31774,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29481,19 +31782,46 @@ export namespace events {
         } // encode UserPasswordChange
     } // UserPasswordChange
 
+    // AccessRequestCreate is emitted when access request has been created or updated
     export class AccessRequestCreate {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // Roles is a list of roles for the user.
         public Roles: Array<string> = new Array<string>();
+        // RequestID is access request ID
         public RequestID: string = "";
+        /**
+         * RequestState is access request state (in the access_request.review variant of
+         *  the event this represents the post-review state of the request).
+         */
         public RequestState: string = "";
+        /**
+         * Delegator is used by teleport plugins to indicate the identity
+         *  which caused them to update state.
+         */
         public Delegator: string = "";
+        /**
+         * Reason is an optional description of why the request is being
+         *  created or updated.
+         */
         public Reason: string = "";
+        /**
+         * Annotations is an optional set of attributes supplied by a plugin during
+         *  approval/denail of the request.
+         */
         public Annotations: google.protobuf.Struct =
             new google.protobuf.Struct();
+        // Reviewer is the author of the review (only used in the access_request.review event variant).
         public Reviewer: string = "";
+        /**
+         * ProposedState is the state proposed by a review (only used in the access_request.review event
+         *  variant).
+         */
         public ProposedState: string = "";
 
         // Decodes AccessRequestCreate from an ArrayBuffer
@@ -29689,8 +32017,8 @@ export namespace events {
         }
 
         // Encodes AccessRequestCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -29699,7 +32027,7 @@ export namespace events {
         }
 
         // Encodes AccessRequestCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -29712,7 +32040,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29724,7 +32052,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29736,7 +32064,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29777,7 +32105,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x4a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29796,12 +32124,164 @@ export namespace events {
         } // encode AccessRequestCreate
     } // AccessRequestCreate
 
-    export class PortForward {
+    // AccessRequestDelete is emitted when an access request has been deleted.
+    export class AccessRequestDelete {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // RequestID is access request ID
+        public RequestID: string = "";
+
+        // Decodes AccessRequestDelete from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): AccessRequestDelete {
+            return AccessRequestDelete.decode(new DataView(buf));
+        }
+
+        // Decodes AccessRequestDelete from a DataView
+        static decode(view: DataView): AccessRequestDelete {
+            const decoder = new __proto.Decoder(view);
+            const obj = new AccessRequestDelete();
+
+            while (!decoder.eof()) {
+                const tag = decoder.tag();
+                const number = tag >>> 3;
+
+                switch (number) {
+                    case 1: {
+                        const length = decoder.uint32();
+                        obj.Metadata = events.Metadata.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 2: {
+                        const length = decoder.uint32();
+                        obj.User = events.UserMetadata.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 3: {
+                        obj.RequestID = decoder.string();
+                        break;
+                    }
+
+                    default:
+                        decoder.skipType(tag & 7);
+                        break;
+                }
+            }
+            return obj;
+        } // decode AccessRequestDelete
+
+        public size(): u32 {
+            let size: u32 = 0;
+
+            if (this.Metadata != null) {
+                const f: events.Metadata = this.Metadata as events.Metadata;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            if (this.User != null) {
+                const f: events.UserMetadata = this.User as events.UserMetadata;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            size +=
+                this.RequestID.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.RequestID.length) +
+                      this.RequestID.length
+                    : 0;
+
+            return size;
+        }
+
+        // Encodes AccessRequestDelete to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
+            const view = new DataView(new ArrayBuffer(source.length));
+            for (let i: i32 = 0; i < source.length; i++) {
+                view.setUint8(i, source.at(i));
+            }
+            return view;
+        }
+
+        // Encodes AccessRequestDelete to the Array<u8>
+        encodeU8Array(
+            encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
+        ): Array<u8> {
+            const buf = encoder.buf;
+
+            if (this.Metadata != null) {
+                const f = this.Metadata as events.Metadata;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0xa);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.User != null) {
+                const f = this.User as events.UserMetadata;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x12);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.RequestID.length > 0) {
+                encoder.uint32(0x1a);
+                encoder.uint32(this.RequestID.length);
+                encoder.string(this.RequestID);
+            }
+
+            return buf;
+        } // encode AccessRequestDelete
+    } // AccessRequestDelete
+
+    // PortForward is emitted when a user requests port forwarding.
+    export class PortForward {
+        // Metadata is a common event metadata
+        public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
+        public User: events.UserMetadata = new events.UserMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // Status contains operation success or failure status
         public Status: events.Status = new events.Status();
+        // Addr is a target port forwarding address
         public Addr: string = "";
 
         // Decodes PortForward from an ArrayBuffer
@@ -29939,8 +32419,8 @@ export namespace events {
         }
 
         // Encodes PortForward to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -29949,7 +32429,7 @@ export namespace events {
         }
 
         // Encodes PortForward to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -29962,7 +32442,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29974,7 +32454,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29986,7 +32466,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -29998,7 +32478,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30012,11 +32492,16 @@ export namespace events {
         } // encode PortForward
     } // PortForward
 
+    // X11Forward is emitted when a user requests X11 protocol forwarding
     export class X11Forward {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // Status contains operation success or failure status
         public Status: events.Status = new events.Status();
 
         // Decodes X11Forward from an ArrayBuffer
@@ -30143,8 +32628,8 @@ export namespace events {
         }
 
         // Encodes X11Forward to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -30153,7 +32638,7 @@ export namespace events {
         }
 
         // Encodes X11Forward to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -30166,7 +32651,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30178,7 +32663,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30190,7 +32675,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30202,7 +32687,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30210,9 +32695,13 @@ export namespace events {
         } // encode X11Forward
     } // X11Forward
 
+    // CommandMetadata specifies common command fields
     export class CommandMetadata {
+        // Command is the executed command name
         public Command: string = "";
+        // ExitCode specifies command exit code
         public ExitCode: string = "";
+        // Error is an optional exit error, set if command has failed
         public Error: string = "";
 
         // Decodes CommandMetadata from an ArrayBuffer
@@ -30277,8 +32766,8 @@ export namespace events {
         }
 
         // Encodes CommandMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -30287,7 +32776,7 @@ export namespace events {
         }
 
         // Encodes CommandMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -30312,16 +32801,28 @@ export namespace events {
         } // encode CommandMetadata
     } // CommandMetadata
 
+    // Exec specifies command exec event
     export class Exec {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // CommandMetadata is a common command metadata
         public Command: events.CommandMetadata = new events.CommandMetadata();
+        /**
+         * KubernetesCluster has information about a kubernetes cluster, if
+         *  applicable.
+         */
         public KubernetesCluster: events.KubernetesClusterMetadata =
             new events.KubernetesClusterMetadata();
+        // KubernetesPod has information about a kubernetes pod, if applicable.
         public KubernetesPod: events.KubernetesPodMetadata =
             new events.KubernetesPodMetadata();
 
@@ -30547,8 +33048,8 @@ export namespace events {
         }
 
         // Encodes Exec to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -30557,7 +33058,7 @@ export namespace events {
         }
 
         // Encodes Exec to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -30570,7 +33071,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30582,7 +33083,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30594,7 +33095,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30606,7 +33107,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30618,7 +33119,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30630,7 +33131,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30643,7 +33144,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30655,7 +33156,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30663,15 +33164,24 @@ export namespace events {
         } // encode Exec
     } // Exec
 
+    // SCP is emitted when data transfer has occurred between server and client
     export class SCP {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // CommandMetadata is a common command metadata
         public Command: events.CommandMetadata = new events.CommandMetadata();
+        // Path is a copy path
         public Path: string = "";
+        // Action is upload or download
         public Action: string = "";
 
         // Decodes SCP from an ArrayBuffer
@@ -30868,8 +33378,8 @@ export namespace events {
         }
 
         // Encodes SCP to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -30878,7 +33388,7 @@ export namespace events {
         }
 
         // Encodes SCP to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -30891,7 +33401,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30903,7 +33413,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30915,7 +33425,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30927,7 +33437,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30939,7 +33449,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30951,7 +33461,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -30970,12 +33480,18 @@ export namespace events {
         } // encode SCP
     } // SCP
 
+    // Subsystem is emitted when a user requests a new subsystem.
     export class Subsystem {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // Name is a subsystem name
         public Name: string = "";
+        // Error contains error in case of unsucessfull attempt
         public Error: string = "";
 
         // Decodes Subsystem from an ArrayBuffer
@@ -31100,8 +33616,8 @@ export namespace events {
         }
 
         // Encodes Subsystem to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -31110,7 +33626,7 @@ export namespace events {
         }
 
         // Encodes Subsystem to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -31123,7 +33639,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31135,7 +33651,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31147,7 +33663,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31166,12 +33682,24 @@ export namespace events {
         } // encode Subsystem
     } // Subsystem
 
+    /**
+     * ClientDisconnect is emitted when client is disconnected
+     *  by the server due to inactivity or any other reason
+     */
     export class ClientDisconnect {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        /**
+         * Reason is a field that specifies reason for event, e.g. in disconnect
+         *  event it explains why server disconnected the client
+         */
         public Reason: string = "";
 
         // Decodes ClientDisconnect from an ArrayBuffer
@@ -31310,8 +33838,8 @@ export namespace events {
         }
 
         // Encodes ClientDisconnect to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -31320,7 +33848,7 @@ export namespace events {
         }
 
         // Encodes ClientDisconnect to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -31333,7 +33861,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31345,7 +33873,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31357,7 +33885,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31369,7 +33897,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31383,11 +33911,16 @@ export namespace events {
         } // encode ClientDisconnect
     } // ClientDisconnect
 
+    // AuthAttempt is emitted upon a failed or successfull authentication attempt.
     export class AuthAttempt {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // Status contains common command or operation status fields
         public Status: events.Status = new events.Status();
 
         // Decodes AuthAttempt from an ArrayBuffer
@@ -31514,8 +34047,8 @@ export namespace events {
         }
 
         // Encodes AuthAttempt to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -31524,7 +34057,7 @@ export namespace events {
         }
 
         // Encodes AuthAttempt to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -31537,7 +34070,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31549,7 +34082,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31561,7 +34094,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31573,7 +34106,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31581,10 +34114,14 @@ export namespace events {
         } // encode AuthAttempt
     } // AuthAttempt
 
+    // UserTokenCreate is emitted when a user token is created.
     export class UserTokenCreate {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes UserTokenCreate from an ArrayBuffer
@@ -31688,8 +34225,8 @@ export namespace events {
         }
 
         // Encodes UserTokenCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -31698,7 +34235,7 @@ export namespace events {
         }
 
         // Encodes UserTokenCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -31711,7 +34248,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31723,7 +34260,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31735,7 +34272,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31743,10 +34280,14 @@ export namespace events {
         } // encode UserTokenCreate
     } // UserTokenCreate
 
+    // RoleCreate is emitted when a role is created/updated.
     export class RoleCreate {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes RoleCreate from an ArrayBuffer
@@ -31850,8 +34391,8 @@ export namespace events {
         }
 
         // Encodes RoleCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -31860,7 +34401,7 @@ export namespace events {
         }
 
         // Encodes RoleCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -31873,7 +34414,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31885,7 +34426,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31897,7 +34438,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -31905,10 +34446,14 @@ export namespace events {
         } // encode RoleCreate
     } // RoleCreate
 
+    // RoleDelete is emitted when a role is deleted
     export class RoleDelete {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes RoleDelete from an ArrayBuffer
@@ -32012,8 +34557,8 @@ export namespace events {
         }
 
         // Encodes RoleDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -32022,7 +34567,7 @@ export namespace events {
         }
 
         // Encodes RoleDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -32035,7 +34580,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32047,7 +34592,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32059,7 +34604,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32067,10 +34612,14 @@ export namespace events {
         } // encode RoleDelete
     } // RoleDelete
 
+    // TrustedClusterCreate is the event for creating a trusted cluster.
     export class TrustedClusterCreate {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes TrustedClusterCreate from an ArrayBuffer
@@ -32174,8 +34723,8 @@ export namespace events {
         }
 
         // Encodes TrustedClusterCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -32184,7 +34733,7 @@ export namespace events {
         }
 
         // Encodes TrustedClusterCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -32197,7 +34746,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32209,7 +34758,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32221,7 +34770,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32229,10 +34778,14 @@ export namespace events {
         } // encode TrustedClusterCreate
     } // TrustedClusterCreate
 
+    // TrustedClusterDelete is the event for removing a trusted cluster.
     export class TrustedClusterDelete {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes TrustedClusterDelete from an ArrayBuffer
@@ -32336,8 +34889,8 @@ export namespace events {
         }
 
         // Encodes TrustedClusterDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -32346,7 +34899,7 @@ export namespace events {
         }
 
         // Encodes TrustedClusterDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -32359,7 +34912,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32371,7 +34924,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32383,7 +34936,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32391,10 +34944,17 @@ export namespace events {
         } // encode TrustedClusterDelete
     } // TrustedClusterDelete
 
+    /**
+     * TrustedClusterTokenCreate is the event for
+     *  creating new join token for a trusted cluster.
+     */
     export class TrustedClusterTokenCreate {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes TrustedClusterTokenCreate from an ArrayBuffer
@@ -32498,8 +35058,8 @@ export namespace events {
         }
 
         // Encodes TrustedClusterTokenCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -32508,7 +35068,7 @@ export namespace events {
         }
 
         // Encodes TrustedClusterTokenCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -32521,7 +35081,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32533,7 +35093,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32545,7 +35105,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32553,10 +35113,14 @@ export namespace events {
         } // encode TrustedClusterTokenCreate
     } // TrustedClusterTokenCreate
 
+    // GithubConnectorCreate fires when a Github connector is created/updated.
     export class GithubConnectorCreate {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes GithubConnectorCreate from an ArrayBuffer
@@ -32660,8 +35224,8 @@ export namespace events {
         }
 
         // Encodes GithubConnectorCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -32670,7 +35234,7 @@ export namespace events {
         }
 
         // Encodes GithubConnectorCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -32683,7 +35247,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32695,7 +35259,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32707,7 +35271,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32715,10 +35279,14 @@ export namespace events {
         } // encode GithubConnectorCreate
     } // GithubConnectorCreate
 
+    // GithubConnectorDelete fires when a Github connector is deleted.
     export class GithubConnectorDelete {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes GithubConnectorDelete from an ArrayBuffer
@@ -32822,8 +35390,8 @@ export namespace events {
         }
 
         // Encodes GithubConnectorDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -32832,7 +35400,7 @@ export namespace events {
         }
 
         // Encodes GithubConnectorDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -32845,7 +35413,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32857,7 +35425,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32869,7 +35437,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -32877,10 +35445,14 @@ export namespace events {
         } // encode GithubConnectorDelete
     } // GithubConnectorDelete
 
+    // OIDCConnectorCreate fires when OIDC connector is created/updated.
     export class OIDCConnectorCreate {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes OIDCConnectorCreate from an ArrayBuffer
@@ -32984,8 +35556,8 @@ export namespace events {
         }
 
         // Encodes OIDCConnectorCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -32994,7 +35566,7 @@ export namespace events {
         }
 
         // Encodes OIDCConnectorCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -33007,7 +35579,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33019,7 +35591,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33031,7 +35603,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33039,10 +35611,14 @@ export namespace events {
         } // encode OIDCConnectorCreate
     } // OIDCConnectorCreate
 
+    // OIDCConnectorDelete fires when OIDC connector is deleted.
     export class OIDCConnectorDelete {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes OIDCConnectorDelete from an ArrayBuffer
@@ -33146,8 +35722,8 @@ export namespace events {
         }
 
         // Encodes OIDCConnectorDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -33156,7 +35732,7 @@ export namespace events {
         }
 
         // Encodes OIDCConnectorDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -33169,7 +35745,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33181,7 +35757,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33193,7 +35769,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33201,10 +35777,14 @@ export namespace events {
         } // encode OIDCConnectorDelete
     } // OIDCConnectorDelete
 
+    // SAMLConnectorCreate fires when SAML connector is created/updated.
     export class SAMLConnectorCreate {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes SAMLConnectorCreate from an ArrayBuffer
@@ -33308,8 +35888,8 @@ export namespace events {
         }
 
         // Encodes SAMLConnectorCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -33318,7 +35898,7 @@ export namespace events {
         }
 
         // Encodes SAMLConnectorCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -33331,7 +35911,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33343,7 +35923,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33355,7 +35935,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33363,10 +35943,14 @@ export namespace events {
         } // encode SAMLConnectorCreate
     } // SAMLConnectorCreate
 
+    // SAMLConnectorDelete fires when SAML connector is deleted.
     export class SAMLConnectorDelete {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes SAMLConnectorDelete from an ArrayBuffer
@@ -33470,8 +36054,8 @@ export namespace events {
         }
 
         // Encodes SAMLConnectorDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -33480,7 +36064,7 @@ export namespace events {
         }
 
         // Encodes SAMLConnectorDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -33493,7 +36077,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33505,7 +36089,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33517,7 +36101,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33525,19 +36109,32 @@ export namespace events {
         } // encode SAMLConnectorDelete
     } // SAMLConnectorDelete
 
+    // KubeRequest specifies a Kubernetes API request event.
     export class KubeRequest {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // RequestPath is the raw request URL path.
         public RequestPath: string = "";
+        // Verb is the HTTP verb used for this request (e.g. GET, POST, etc)
         public Verb: string = "";
+        // ResourceAPIGroup is the resource API group.
         public ResourceAPIGroup: string = "";
+        // ResourceNamespace is the resource namespace.
         public ResourceNamespace: string = "";
+        // ResourceKind is the API resource kind (e.g. "pod", "service", etc).
         public ResourceKind: string = "";
+        // ResourceName is the API resource name.
         public ResourceName: string = "";
+        // ResponseCode is the HTTP response code for this request.
         public ResponseCode: i32;
+        // Kubernetes has information about a kubernetes cluster, if applicable.
         public Kubernetes: events.KubernetesClusterMetadata =
             new events.KubernetesClusterMetadata();
 
@@ -33760,8 +36357,8 @@ export namespace events {
         }
 
         // Encodes KubeRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -33770,7 +36367,7 @@ export namespace events {
         }
 
         // Encodes KubeRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -33783,7 +36380,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33795,7 +36392,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33807,7 +36404,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33819,7 +36416,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33866,7 +36463,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x62);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -33874,10 +36471,16 @@ export namespace events {
         } // encode KubeRequest
     } // KubeRequest
 
+    // AppMetadata contains common application information.
     export class AppMetadata {
+        // AppURI is the application endpoint.
         public AppURI: string = "";
+        // AppPublicAddr is the configured application public address.
         public AppPublicAddr: string = "";
+        // AppLabels are the configured application labels.
         public AppLabels: Map<string, string> = new Map<string, string>();
+        // AppName is the configured application name.
+        public AppName: string = "";
 
         // Decodes AppMetadata from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): AppMetadata {
@@ -33911,6 +36514,10 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        break;
+                    }
+                    case 4: {
+                        obj.AppName = decoder.string();
                         break;
                     }
 
@@ -33951,12 +36558,19 @@ export namespace events {
                 }
             }
 
+            size +=
+                this.AppName.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.AppName.length) +
+                      this.AppName.length
+                    : 0;
+
             return size;
         }
 
         // Encodes AppMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -33965,7 +36579,7 @@ export namespace events {
         }
 
         // Encodes AppMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -34004,15 +36618,26 @@ export namespace events {
                 }
             }
 
+            if (this.AppName.length > 0) {
+                encoder.uint32(0x22);
+                encoder.uint32(this.AppName.length);
+                encoder.string(this.AppName);
+            }
+
             return buf;
         } // encode AppMetadata
     } // AppMetadata
 
+    // AppCreate is emitted when a new application resource is created.
     export class AppCreate {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // ResourceMetadata is a common resource event metadata.
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // AppMetadata is a common application resource metadata.
         public App: events.AppMetadata = new events.AppMetadata();
 
         // Decodes AppCreate from an ArrayBuffer
@@ -34139,8 +36764,8 @@ export namespace events {
         }
 
         // Encodes AppCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -34149,7 +36774,7 @@ export namespace events {
         }
 
         // Encodes AppCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -34162,7 +36787,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34174,7 +36799,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34186,7 +36811,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34198,7 +36823,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34206,11 +36831,16 @@ export namespace events {
         } // encode AppCreate
     } // AppCreate
 
+    // AppUpdate is emitted when an existing application resource is updated.
     export class AppUpdate {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // ResourceMetadata is a common resource event metadata.
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // AppMetadata is a common application resource metadata.
         public App: events.AppMetadata = new events.AppMetadata();
 
         // Decodes AppUpdate from an ArrayBuffer
@@ -34337,8 +36967,8 @@ export namespace events {
         }
 
         // Encodes AppUpdate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -34347,7 +36977,7 @@ export namespace events {
         }
 
         // Encodes AppUpdate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -34360,7 +36990,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34372,7 +37002,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34384,7 +37014,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34396,7 +37026,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34404,9 +37034,13 @@ export namespace events {
         } // encode AppUpdate
     } // AppUpdate
 
+    // AppDelete is emitted when an application resource is deleted.
     export class AppDelete {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // ResourceMetadata is a common resource event metadata.
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
 
@@ -34511,8 +37145,8 @@ export namespace events {
         }
 
         // Encodes AppDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -34521,7 +37155,7 @@ export namespace events {
         }
 
         // Encodes AppDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -34534,7 +37168,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34546,7 +37180,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34558,7 +37192,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34566,14 +37200,26 @@ export namespace events {
         } // encode AppDelete
     } // AppDelete
 
+    // AppSessionStart is emitted when a user is issued an application certificate.
     export class AppSessionStart {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        /**
+         * PublicAddr is the public address of the application being requested.
+         *  DELETE IN 10.0: this information is also present on the AppMetadata.
+         */
         public PublicAddr: string = "";
+        // App is a common application resource metadata.
+        public App: events.AppMetadata = new events.AppMetadata();
 
         // Decodes AppSessionStart from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): AppSessionStart {
@@ -34659,6 +37305,19 @@ export namespace events {
                         obj.PublicAddr = decoder.string();
                         break;
                     }
+                    case 8: {
+                        const length = decoder.uint32();
+                        obj.App = events.AppMetadata.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
 
                     default:
                         decoder.skipType(tag & 7);
@@ -34731,12 +37390,22 @@ export namespace events {
                       this.PublicAddr.length
                     : 0;
 
+            if (this.App != null) {
+                const f: events.AppMetadata = this.App as events.AppMetadata;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
             return size;
         }
 
         // Encodes AppSessionStart to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -34745,7 +37414,7 @@ export namespace events {
         }
 
         // Encodes AppSessionStart to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -34758,7 +37427,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34770,7 +37439,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34782,7 +37451,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34794,7 +37463,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34806,7 +37475,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -34816,18 +37485,46 @@ export namespace events {
                 encoder.string(this.PublicAddr);
             }
 
+            if (this.App != null) {
+                const f = this.App as events.AppMetadata;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x42);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
             return buf;
         } // encode AppSessionStart
     } // AppSessionStart
 
+    /**
+     * AppSessionChunk is emitted at the start of a 5 minute chunk on each
+     *  proxy. This chunk is used to buffer 5 minutes of audit events at a time
+     *  for applications.
+     */
     export class AppSessionChunk {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // ServerMetadata is a common server metadata
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // ConnectionMetadata holds information about the connection
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        /**
+         * SessionChunkID is the ID of the session that was created for this 5 minute
+         *  application log chunk.
+         */
         public SessionChunkID: string = "";
+        // App is a common application resource metadata.
+        public App: events.AppMetadata = new events.AppMetadata();
 
         // Decodes AppSessionChunk from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): AppSessionChunk {
@@ -34913,6 +37610,19 @@ export namespace events {
                         obj.SessionChunkID = decoder.string();
                         break;
                     }
+                    case 7: {
+                        const length = decoder.uint32();
+                        obj.App = events.AppMetadata.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
 
                     default:
                         decoder.skipType(tag & 7);
@@ -34985,12 +37695,22 @@ export namespace events {
                       this.SessionChunkID.length
                     : 0;
 
+            if (this.App != null) {
+                const f: events.AppMetadata = this.App as events.AppMetadata;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
             return size;
         }
 
         // Encodes AppSessionChunk to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -34999,7 +37719,7 @@ export namespace events {
         }
 
         // Encodes AppSessionChunk to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -35012,7 +37732,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35024,7 +37744,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35036,7 +37756,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35048,7 +37768,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35060,7 +37780,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35070,16 +37790,36 @@ export namespace events {
                 encoder.string(this.SessionChunkID);
             }
 
+            if (this.App != null) {
+                const f = this.App as events.AppMetadata;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x3a);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
             return buf;
         } // encode AppSessionChunk
     } // AppSessionChunk
 
+    // AppSessionRequest is an HTTP request and response.
     export class AppSessionRequest {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // StatusCode the HTTP response code for the request.
         public StatusCode: u32;
+        // Path is relative path in the URL.
         public Path: string = "";
+        // RawQuery are the encoded query values.
         public RawQuery: string = "";
+        // Method is the request HTTP method, like GET/POST/DELETE/etc.
         public Method: string = "";
+        // App is a common application resource metadata.
+        public App: events.AppMetadata = new events.AppMetadata();
 
         // Decodes AppSessionRequest from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): AppSessionRequest {
@@ -35123,6 +37863,19 @@ export namespace events {
                     }
                     case 5: {
                         obj.Method = decoder.string();
+                        break;
+                    }
+                    case 6: {
+                        const length = decoder.uint32();
+                        obj.App = events.AppMetadata.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
                         break;
                     }
 
@@ -35170,12 +37923,22 @@ export namespace events {
                       this.Method.length
                     : 0;
 
+            if (this.App != null) {
+                const f: events.AppMetadata = this.App as events.AppMetadata;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
             return size;
         }
 
         // Encodes AppSessionRequest to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -35184,7 +37947,7 @@ export namespace events {
         }
 
         // Encodes AppSessionRequest to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -35197,7 +37960,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35221,20 +37984,43 @@ export namespace events {
                 encoder.string(this.Method);
             }
 
+            if (this.App != null) {
+                const f = this.App as events.AppMetadata;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x32);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
             return buf;
         } // encode AppSessionRequest
     } // AppSessionRequest
 
+    // DatabaseMetadata contains common database information.
     export class DatabaseMetadata {
+        // DatabaseService is the name of the database service proxying the database.
         public DatabaseService: string = "";
+        // DatabaseProtocol is the database type, e.g. postgres or mysql.
         public DatabaseProtocol: string = "";
+        // DatabaseURI is the database URI to connect to.
         public DatabaseURI: string = "";
+        // DatabaseName is the name of the database a user is connecting to.
         public DatabaseName: string = "";
+        // DatabaseUser is the database username used to connect.
         public DatabaseUser: string = "";
+        // DatabaseLabels is the database resource labels.
         public DatabaseLabels: Map<string, string> = new Map<string, string>();
+        // DatabaseAWSRegion is AWS regions for AWS hosted databases.
         public DatabaseAWSRegion: string = "";
+        // DatabaseAWSRegion is cluster ID for Redshift databases.
         public DatabaseAWSRedshiftClusterID: string = "";
+        // DatabaseGCPProjectID is project ID for GCP hosted databases.
         public DatabaseGCPProjectID: string = "";
+        // DatabaseGCPInstanceID is instance ID for GCP hosted databases.
         public DatabaseGCPInstanceID: string = "";
 
         // Decodes DatabaseMetadata from an ArrayBuffer
@@ -35388,8 +38174,8 @@ export namespace events {
         }
 
         // Encodes DatabaseMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -35398,7 +38184,7 @@ export namespace events {
         }
 
         // Encodes DatabaseMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -35477,11 +38263,16 @@ export namespace events {
         } // encode DatabaseMetadata
     } // DatabaseMetadata
 
+    // DatabaseCreate is emitted when a new database resource is created.
     export class DatabaseCreate {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // ResourceMetadata is a common resource event metadata.
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // DatabaseMetadata is a common database resource metadata.
         public Database: events.DatabaseMetadata =
             new events.DatabaseMetadata();
 
@@ -35610,8 +38401,8 @@ export namespace events {
         }
 
         // Encodes DatabaseCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -35620,7 +38411,7 @@ export namespace events {
         }
 
         // Encodes DatabaseCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -35633,7 +38424,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35645,7 +38436,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35657,7 +38448,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35669,7 +38460,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35677,11 +38468,16 @@ export namespace events {
         } // encode DatabaseCreate
     } // DatabaseCreate
 
+    // DatabaseUpdate is emitted when an existing database resource is updated.
     export class DatabaseUpdate {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // ResourceMetadata is a common resource event metadata.
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // DatabaseMetadata is a common database resource metadata.
         public Database: events.DatabaseMetadata =
             new events.DatabaseMetadata();
 
@@ -35810,8 +38606,8 @@ export namespace events {
         }
 
         // Encodes DatabaseUpdate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -35820,7 +38616,7 @@ export namespace events {
         }
 
         // Encodes DatabaseUpdate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -35833,7 +38629,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35845,7 +38641,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35857,7 +38653,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35869,7 +38665,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -35877,9 +38673,13 @@ export namespace events {
         } // encode DatabaseUpdate
     } // DatabaseUpdate
 
+    // DatabaseDelete is emitted when a database resource is deleted.
     export class DatabaseDelete {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // ResourceMetadata is a common resource event metadata.
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
 
@@ -35984,8 +38784,8 @@ export namespace events {
         }
 
         // Encodes DatabaseDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -35994,7 +38794,7 @@ export namespace events {
         }
 
         // Encodes DatabaseDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -36007,7 +38807,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36019,7 +38819,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36031,7 +38831,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36039,14 +38839,22 @@ export namespace events {
         } // encode DatabaseDelete
     } // DatabaseDelete
 
+    // DatabaseSessionStart is emitted when a user connects to a database.
     export class DatabaseSessionStart {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // Session is a common event session metadata.
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // Server is a common server metadata.
         public Server: events.ServerMetadata = new events.ServerMetadata();
+        // Connection holds information about the connection.
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // Status indicates whether the connection was successful or denied.
         public Status: events.Status = new events.Status();
+        // Database contains database related metadata.
         public Database: events.DatabaseMetadata =
             new events.DatabaseMetadata();
 
@@ -36246,8 +39054,8 @@ export namespace events {
         }
 
         // Encodes DatabaseSessionStart to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -36256,7 +39064,7 @@ export namespace events {
         }
 
         // Encodes DatabaseSessionStart to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -36269,7 +39077,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36281,7 +39089,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36293,7 +39101,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36305,7 +39113,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36317,7 +39125,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36329,7 +39137,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36341,7 +39149,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36349,14 +39157,22 @@ export namespace events {
         } // encode DatabaseSessionStart
     } // DatabaseSessionStart
 
+    // DatabaseSessionQuery is emitted when a user executes a database query.
     export class DatabaseSessionQuery {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // SessionMetadata is a common event session metadata.
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // Database contains database related metadata.
         public Database: events.DatabaseMetadata =
             new events.DatabaseMetadata();
+        // DatabaseQuery is the executed query string.
         public DatabaseQuery: string = "";
+        // DatabaseQueryParameters are the query parameters for prepared statements.
         public DatabaseQueryParameters: Array<string> = new Array<string>();
+        // Status indicates whether the query was successfully sent to the database.
         public Status: events.Status = new events.Status();
 
         // Decodes DatabaseSessionQuery from an ArrayBuffer
@@ -36524,8 +39340,8 @@ export namespace events {
         }
 
         // Encodes DatabaseSessionQuery to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -36534,7 +39350,7 @@ export namespace events {
         }
 
         // Encodes DatabaseSessionQuery to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -36547,7 +39363,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36559,7 +39375,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36571,7 +39387,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36583,7 +39399,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36613,7 +39429,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36621,17 +39437,28 @@ export namespace events {
         } // encode DatabaseSessionQuery
     } // DatabaseSessionQuery
 
+    // WindowsDesktopSessionStart is emitted when a user connects to a desktop.
     export class WindowsDesktopSessionStart {
+        // Metadata is common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // Session is common event session metadata.
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // Connection holds information about the connection.
         public Connection: events.ConnectionMetadata =
             new events.ConnectionMetadata();
+        // Status indicates whether the connection was successful or denied.
         public Status: events.Status = new events.Status();
+        // WindowsDesktopService is the name of the service proxying the RDP session.
         public WindowsDesktopService: string = "";
+        // DesktopAddr is the address of the desktop being accessed.
         public DesktopAddr: string = "";
+        // Domain is the Active Directory domain of the desktop being accessed.
         public Domain: string = "";
+        // WindowsUser is the Windows username used to connect.
         public WindowsUser: string = "";
+        // DesktopLabels are the labels on the desktop resource.
         public DesktopLabels: Map<string, string> = new Map<string, string>();
 
         // Decodes WindowsDesktopSessionStart from an ArrayBuffer
@@ -36849,8 +39676,8 @@ export namespace events {
         }
 
         // Encodes WindowsDesktopSessionStart to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -36859,7 +39686,7 @@ export namespace events {
         }
 
         // Encodes WindowsDesktopSessionStart to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -36872,7 +39699,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36884,7 +39711,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36896,7 +39723,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36908,7 +39735,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36920,7 +39747,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -36972,10 +39799,15 @@ export namespace events {
         } // encode WindowsDesktopSessionStart
     } // WindowsDesktopSessionStart
 
+    // DatabaseSessionEnd is emitted when a user ends the database session.
     export class DatabaseSessionEnd {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // Session is a common event session metadata.
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // Database contains database related metadata.
         public Database: events.DatabaseMetadata =
             new events.DatabaseMetadata();
 
@@ -37104,8 +39936,8 @@ export namespace events {
         }
 
         // Encodes DatabaseSessionEnd to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -37114,7 +39946,7 @@ export namespace events {
         }
 
         // Encodes DatabaseSessionEnd to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -37127,7 +39959,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37139,7 +39971,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37151,7 +39983,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37163,7 +39995,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37171,9 +40003,13 @@ export namespace events {
         } // encode DatabaseSessionEnd
     } // DatabaseSessionEnd
 
+    // MFADeviceMetadata is a common MFA device metadata.
     export class MFADeviceMetadata {
+        // Name is the user-specified name of the MFA device.
         public DeviceName: string = "";
+        // ID is the UUID of the MFA device generated by Teleport.
         public DeviceID: string = "";
+        // Type is the type of this MFA device.
         public DeviceType: string = "";
 
         // Decodes MFADeviceMetadata from an ArrayBuffer
@@ -37238,8 +40074,8 @@ export namespace events {
         }
 
         // Encodes MFADeviceMetadata to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -37248,7 +40084,7 @@ export namespace events {
         }
 
         // Encodes MFADeviceMetadata to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -37273,9 +40109,13 @@ export namespace events {
         } // encode MFADeviceMetadata
     } // MFADeviceMetadata
 
+    // MFADeviceAdd is emitted when a user adds an MFA device.
     export class MFADeviceAdd {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // Device is the new MFA device added by the user.
         public Device: events.MFADeviceMetadata =
             new events.MFADeviceMetadata();
 
@@ -37380,8 +40220,8 @@ export namespace events {
         }
 
         // Encodes MFADeviceAdd to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -37390,7 +40230,7 @@ export namespace events {
         }
 
         // Encodes MFADeviceAdd to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -37403,7 +40243,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37415,7 +40255,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37427,7 +40267,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37435,9 +40275,13 @@ export namespace events {
         } // encode MFADeviceAdd
     } // MFADeviceAdd
 
+    // MFADeviceDelete is emitted when a user deletes an MFA device.
     export class MFADeviceDelete {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // Device is the MFA device deleted by the user.
         public Device: events.MFADeviceMetadata =
             new events.MFADeviceMetadata();
 
@@ -37542,8 +40386,8 @@ export namespace events {
         }
 
         // Encodes MFADeviceDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -37552,7 +40396,7 @@ export namespace events {
         }
 
         // Encodes MFADeviceDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -37565,7 +40409,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37577,7 +40421,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37589,7 +40433,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37597,8 +40441,11 @@ export namespace events {
         } // encode MFADeviceDelete
     } // MFADeviceDelete
 
+    // BillingInformationUpdate is emitted when a user updates the billing information.
     export class BillingInformationUpdate {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes BillingInformationUpdate from an ArrayBuffer
@@ -37678,8 +40525,8 @@ export namespace events {
         }
 
         // Encodes BillingInformationUpdate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -37688,7 +40535,7 @@ export namespace events {
         }
 
         // Encodes BillingInformationUpdate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -37701,7 +40548,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37713,7 +40560,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37721,8 +40568,11 @@ export namespace events {
         } // encode BillingInformationUpdate
     } // BillingInformationUpdate
 
+    // BillingCardCreate is emitted when a user creates or updates a credit card.
     export class BillingCardCreate {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes BillingCardCreate from an ArrayBuffer
@@ -37802,8 +40652,8 @@ export namespace events {
         }
 
         // Encodes BillingCardCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -37812,7 +40662,7 @@ export namespace events {
         }
 
         // Encodes BillingCardCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -37825,7 +40675,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37837,7 +40687,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37845,8 +40695,11 @@ export namespace events {
         } // encode BillingCardCreate
     } // BillingCardCreate
 
+    // BillingCardDelete is emitted when a user deletes a credit card.
     export class BillingCardDelete {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes BillingCardDelete from an ArrayBuffer
@@ -37926,8 +40779,8 @@ export namespace events {
         }
 
         // Encodes BillingCardDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -37936,7 +40789,7 @@ export namespace events {
         }
 
         // Encodes BillingCardDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -37949,7 +40802,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37961,7 +40814,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -37969,10 +40822,19 @@ export namespace events {
         } // encode BillingCardDelete
     } // BillingCardDelete
 
+    /**
+     * LockCreate is emitted when a lock is created/updated.
+     *  Locks are used to restrict access to a Teleport environment by disabling
+     *  interactions involving a user, an RBAC role, a node, etc.
+     *  See rfd/0009-locking.md for more details.
+     */
     export class LockCreate {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes LockCreate from an ArrayBuffer
@@ -38076,8 +40938,8 @@ export namespace events {
         }
 
         // Encodes LockCreate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -38086,7 +40948,7 @@ export namespace events {
         }
 
         // Encodes LockCreate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -38099,7 +40961,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38111,7 +40973,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38123,7 +40985,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38131,10 +40993,14 @@ export namespace events {
         } // encode LockCreate
     } // LockCreate
 
+    // LockDelete is emitted when a lock is deleted
     export class LockDelete {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // ResourceMetadata is a common resource event metadata
         public Resource: events.ResourceMetadata =
             new events.ResourceMetadata();
+        // User is a common user event metadata
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes LockDelete from an ArrayBuffer
@@ -38238,8 +41104,8 @@ export namespace events {
         }
 
         // Encodes LockDelete to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -38248,7 +41114,7 @@ export namespace events {
         }
 
         // Encodes LockDelete to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -38261,7 +41127,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38273,7 +41139,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38285,7 +41151,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38293,8 +41159,11 @@ export namespace events {
         } // encode LockDelete
     } // LockDelete
 
+    // RecoveryCodeGenerate is emitted when a user's new recovery codes are generated and updated.
     export class RecoveryCodeGenerate {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
 
         // Decodes RecoveryCodeGenerate from an ArrayBuffer
@@ -38374,8 +41243,8 @@ export namespace events {
         }
 
         // Encodes RecoveryCodeGenerate to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -38384,7 +41253,7 @@ export namespace events {
         }
 
         // Encodes RecoveryCodeGenerate to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -38397,7 +41266,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38409,7 +41278,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38417,9 +41286,16 @@ export namespace events {
         } // encode RecoveryCodeGenerate
     } // RecoveryCodeGenerate
 
+    /**
+     * RecoveryCodeUsed is emitted when a user's recovery code was used successfully or
+     *  unsuccessfully.
+     */
     export class RecoveryCodeUsed {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // Status contains fields to indicate whether attempt was successful or not.
         public Status: events.Status = new events.Status();
 
         // Decodes RecoveryCodeUsed from an ArrayBuffer
@@ -38522,8 +41398,8 @@ export namespace events {
         }
 
         // Encodes RecoveryCodeUsed to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -38532,7 +41408,7 @@ export namespace events {
         }
 
         // Encodes RecoveryCodeUsed to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -38545,7 +41421,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38557,7 +41433,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38569,7 +41445,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38577,14 +41453,23 @@ export namespace events {
         } // encode RecoveryCodeUsed
     } // RecoveryCodeUsed
 
+    // WindowsDesktopSessionEnd is emitted when a user ends a Windows desktop session.
     export class WindowsDesktopSessionEnd {
+        // Metadata is a common event metadata.
         public Metadata: events.Metadata = new events.Metadata();
+        // User is a common user event metadata.
         public User: events.UserMetadata = new events.UserMetadata();
+        // Session is a common event session metadata.
         public Session: events.SessionMetadata = new events.SessionMetadata();
+        // WindowsDesktopService is the name of the service proxying the RDP session.
         public WindowsDesktopService: string = "";
+        // DesktopAddr is the address of the desktop being accessed.
         public DesktopAddr: string = "";
+        // Domain is the Active Directory domain of the desktop being accessed.
         public Domain: string = "";
+        // WindowsUser is the Windows username used to connect.
         public WindowsUser: string = "";
+        // DesktopLabels are the labels on the desktop resource.
         public DesktopLabels: Map<string, string> = new Map<string, string>();
 
         // Decodes WindowsDesktopSessionEnd from an ArrayBuffer
@@ -38755,8 +41640,8 @@ export namespace events {
         }
 
         // Encodes WindowsDesktopSessionEnd to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -38765,7 +41650,7 @@ export namespace events {
         }
 
         // Encodes WindowsDesktopSessionEnd to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -38778,7 +41663,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38790,7 +41675,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38802,7 +41687,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -38854,7 +41739,155 @@ export namespace events {
         } // encode WindowsDesktopSessionEnd
     } // WindowsDesktopSessionEnd
 
+    // CertificateCreate is emitted when a certificate is issued.
+    export class CertificateCreate {
+        // Metadata is a common event metadata.
+        public Metadata: events.Metadata = new events.Metadata();
+        // CertificateType is the type of certificate that was just issued.
+        public CertificateType: string = "";
+        // Identity is the identity associated with the certificate, as interpreted by Teleport.
+        public Identity: events.Identity = new events.Identity();
+
+        // Decodes CertificateCreate from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): CertificateCreate {
+            return CertificateCreate.decode(new DataView(buf));
+        }
+
+        // Decodes CertificateCreate from a DataView
+        static decode(view: DataView): CertificateCreate {
+            const decoder = new __proto.Decoder(view);
+            const obj = new CertificateCreate();
+
+            while (!decoder.eof()) {
+                const tag = decoder.tag();
+                const number = tag >>> 3;
+
+                switch (number) {
+                    case 1: {
+                        const length = decoder.uint32();
+                        obj.Metadata = events.Metadata.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 2: {
+                        obj.CertificateType = decoder.string();
+                        break;
+                    }
+                    case 3: {
+                        const length = decoder.uint32();
+                        obj.Identity = events.Identity.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+
+                    default:
+                        decoder.skipType(tag & 7);
+                        break;
+                }
+            }
+            return obj;
+        } // decode CertificateCreate
+
+        public size(): u32 {
+            let size: u32 = 0;
+
+            if (this.Metadata != null) {
+                const f: events.Metadata = this.Metadata as events.Metadata;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            size +=
+                this.CertificateType.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.CertificateType.length) +
+                      this.CertificateType.length
+                    : 0;
+
+            if (this.Identity != null) {
+                const f: events.Identity = this.Identity as events.Identity;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            return size;
+        }
+
+        // Encodes CertificateCreate to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
+            const view = new DataView(new ArrayBuffer(source.length));
+            for (let i: i32 = 0; i < source.length; i++) {
+                view.setUint8(i, source.at(i));
+            }
+            return view;
+        }
+
+        // Encodes CertificateCreate to the Array<u8>
+        encodeU8Array(
+            encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
+        ): Array<u8> {
+            const buf = encoder.buf;
+
+            if (this.Metadata != null) {
+                const f = this.Metadata as events.Metadata;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0xa);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.CertificateType.length > 0) {
+                encoder.uint32(0x12);
+                encoder.uint32(this.CertificateType.length);
+                encoder.string(this.CertificateType);
+            }
+
+            if (this.Identity != null) {
+                const f = this.Identity as events.Identity;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x1a);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            return buf;
+        } // encode CertificateCreate
+    } // CertificateCreate
+
+    // OneOf is a union of one of audit events submitted to the auth service
     export class OneOf {
+        public __oneOf_Event: string = "";
         public UserLogin: events.UserLogin | null;
         public UserCreate: events.UserCreate | null;
         public UserDelete: events.UserDelete | null;
@@ -38915,6 +41948,9 @@ export namespace events {
         public AppDelete: events.AppDelete | null;
         public WindowsDesktopSessionStart: events.WindowsDesktopSessionStart | null;
         public WindowsDesktopSessionEnd: events.WindowsDesktopSessionEnd | null;
+        public AccessRequestDelete: events.AccessRequestDelete | null;
+        public SessionConnect: events.SessionConnect | null;
+        public CertificateCreate: events.CertificateCreate | null;
 
         // Decodes OneOf from an ArrayBuffer
         static decodeArrayBuffer(buf: ArrayBuffer): OneOf {
@@ -38942,6 +41978,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "UserLogin";
                         break;
                     }
                     case 2: {
@@ -38955,6 +41992,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "UserCreate";
                         break;
                     }
                     case 3: {
@@ -38968,6 +42006,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "UserDelete";
                         break;
                     }
                     case 4: {
@@ -38982,6 +42021,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "UserPasswordChange";
                         break;
                     }
                     case 5: {
@@ -38995,6 +42035,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionStart";
                         break;
                     }
                     case 6: {
@@ -39008,6 +42049,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionJoin";
                         break;
                     }
                     case 7: {
@@ -39021,6 +42063,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionPrint";
                         break;
                     }
                     case 8: {
@@ -39034,6 +42077,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionReject";
                         break;
                     }
                     case 9: {
@@ -39047,6 +42091,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "Resize";
                         break;
                     }
                     case 10: {
@@ -39060,6 +42105,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionEnd";
                         break;
                     }
                     case 11: {
@@ -39073,6 +42119,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionCommand";
                         break;
                     }
                     case 12: {
@@ -39086,6 +42133,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionDisk";
                         break;
                     }
                     case 13: {
@@ -39099,6 +42147,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionNetwork";
                         break;
                     }
                     case 14: {
@@ -39112,6 +42161,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionData";
                         break;
                     }
                     case 15: {
@@ -39125,6 +42175,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionLeave";
                         break;
                     }
                     case 16: {
@@ -39138,6 +42189,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "PortForward";
                         break;
                     }
                     case 17: {
@@ -39151,6 +42203,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "X11Forward";
                         break;
                     }
                     case 18: {
@@ -39164,6 +42217,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SCP";
                         break;
                     }
                     case 19: {
@@ -39177,6 +42231,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "Exec";
                         break;
                     }
                     case 20: {
@@ -39190,6 +42245,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "Subsystem";
                         break;
                     }
                     case 21: {
@@ -39203,6 +42259,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "ClientDisconnect";
                         break;
                     }
                     case 22: {
@@ -39216,6 +42273,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "AuthAttempt";
                         break;
                     }
                     case 23: {
@@ -39230,6 +42288,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "AccessRequestCreate";
                         break;
                     }
                     case 24: {
@@ -39243,6 +42302,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "UserTokenCreate";
                         break;
                     }
                     case 25: {
@@ -39256,6 +42316,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "RoleCreate";
                         break;
                     }
                     case 26: {
@@ -39269,6 +42330,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "RoleDelete";
                         break;
                     }
                     case 27: {
@@ -39283,6 +42345,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "TrustedClusterCreate";
                         break;
                     }
                     case 28: {
@@ -39297,6 +42360,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "TrustedClusterDelete";
                         break;
                     }
                     case 29: {
@@ -39311,6 +42375,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "TrustedClusterTokenCreate";
                         break;
                     }
                     case 30: {
@@ -39325,6 +42390,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "GithubConnectorCreate";
                         break;
                     }
                     case 31: {
@@ -39339,6 +42405,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "GithubConnectorDelete";
                         break;
                     }
                     case 32: {
@@ -39353,6 +42420,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "OIDCConnectorCreate";
                         break;
                     }
                     case 33: {
@@ -39367,6 +42435,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "OIDCConnectorDelete";
                         break;
                     }
                     case 34: {
@@ -39381,6 +42450,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SAMLConnectorCreate";
                         break;
                     }
                     case 35: {
@@ -39395,6 +42465,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SAMLConnectorDelete";
                         break;
                     }
                     case 36: {
@@ -39408,6 +42479,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "KubeRequest";
                         break;
                     }
                     case 37: {
@@ -39421,6 +42493,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "AppSessionStart";
                         break;
                     }
                     case 38: {
@@ -39434,6 +42507,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "AppSessionChunk";
                         break;
                     }
                     case 39: {
@@ -39447,6 +42521,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "AppSessionRequest";
                         break;
                     }
                     case 40: {
@@ -39461,6 +42536,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "DatabaseSessionStart";
                         break;
                     }
                     case 41: {
@@ -39475,6 +42551,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "DatabaseSessionEnd";
                         break;
                     }
                     case 42: {
@@ -39489,6 +42566,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "DatabaseSessionQuery";
                         break;
                     }
                     case 43: {
@@ -39502,6 +42580,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "SessionUpload";
                         break;
                     }
                     case 44: {
@@ -39515,6 +42594,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "MFADeviceAdd";
                         break;
                     }
                     case 45: {
@@ -39528,6 +42608,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "MFADeviceDelete";
                         break;
                     }
                     case 46: {
@@ -39542,6 +42623,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "BillingInformationUpdate";
                         break;
                     }
                     case 47: {
@@ -39555,6 +42637,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "BillingCardCreate";
                         break;
                     }
                     case 48: {
@@ -39568,6 +42651,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "BillingCardDelete";
                         break;
                     }
                     case 49: {
@@ -39581,6 +42665,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "LockCreate";
                         break;
                     }
                     case 50: {
@@ -39594,6 +42679,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "LockDelete";
                         break;
                     }
                     case 51: {
@@ -39608,6 +42694,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "RecoveryCodeGenerate";
                         break;
                     }
                     case 52: {
@@ -39621,6 +42708,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "RecoveryCodeUsed";
                         break;
                     }
                     case 53: {
@@ -39634,6 +42722,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "DatabaseCreate";
                         break;
                     }
                     case 54: {
@@ -39647,6 +42736,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "DatabaseUpdate";
                         break;
                     }
                     case 55: {
@@ -39660,6 +42750,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "DatabaseDelete";
                         break;
                     }
                     case 56: {
@@ -39673,6 +42764,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "AppCreate";
                         break;
                     }
                     case 57: {
@@ -39686,6 +42778,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "AppUpdate";
                         break;
                     }
                     case 58: {
@@ -39699,6 +42792,7 @@ export namespace events {
                         );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "AppDelete";
                         break;
                     }
                     case 59: {
@@ -39713,6 +42807,7 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "WindowsDesktopSessionStart";
                         break;
                     }
                     case 60: {
@@ -39727,6 +42822,50 @@ export namespace events {
                             );
                         decoder.skip(length);
 
+                        obj.__oneOf_Event = "WindowsDesktopSessionEnd";
+                        break;
+                    }
+                    case 66: {
+                        const length = decoder.uint32();
+                        obj.AccessRequestDelete =
+                            events.AccessRequestDelete.decode(
+                                new DataView(
+                                    decoder.view.buffer,
+                                    decoder.pos + decoder.view.byteOffset,
+                                    length
+                                )
+                            );
+                        decoder.skip(length);
+
+                        obj.__oneOf_Event = "AccessRequestDelete";
+                        break;
+                    }
+                    case 67: {
+                        const length = decoder.uint32();
+                        obj.SessionConnect = events.SessionConnect.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        obj.__oneOf_Event = "SessionConnect";
+                        break;
+                    }
+                    case 68: {
+                        const length = decoder.uint32();
+                        obj.CertificateCreate = events.CertificateCreate.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        obj.__oneOf_Event = "CertificateCreate";
                         break;
                     }
 
@@ -40393,12 +43532,45 @@ export namespace events {
                 }
             }
 
+            if (this.AccessRequestDelete != null) {
+                const f: events.AccessRequestDelete = this
+                    .AccessRequestDelete as events.AccessRequestDelete;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        2 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            if (this.SessionConnect != null) {
+                const f: events.SessionConnect = this
+                    .SessionConnect as events.SessionConnect;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        2 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            if (this.CertificateCreate != null) {
+                const f: events.CertificateCreate = this
+                    .CertificateCreate as events.CertificateCreate;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        2 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
             return size;
         }
 
         // Encodes OneOf to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -40407,7 +43579,7 @@ export namespace events {
         }
 
         // Encodes OneOf to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -40420,7 +43592,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40432,7 +43604,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40444,7 +43616,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40456,7 +43628,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x22);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40468,7 +43640,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x2a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40480,7 +43652,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x32);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40492,7 +43664,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x3a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40504,7 +43676,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x42);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40516,7 +43688,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x4a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40528,7 +43700,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x52);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40540,7 +43712,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x5a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40552,7 +43724,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x62);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40564,7 +43736,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x6a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40576,7 +43748,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x72);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40588,7 +43760,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x7a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40600,7 +43772,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x82);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40612,7 +43784,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x8a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40624,7 +43796,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x92);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40636,7 +43808,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x9a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40648,7 +43820,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40660,7 +43832,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xaa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40672,7 +43844,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xb2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40685,7 +43857,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xba);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40697,7 +43869,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xc2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40709,7 +43881,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xca);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40721,7 +43893,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xd2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40734,7 +43906,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xda);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40747,7 +43919,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xe2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40760,7 +43932,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xea);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40773,7 +43945,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xf2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40786,7 +43958,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xfa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40799,7 +43971,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x102);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40812,7 +43984,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x10a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40825,7 +43997,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x112);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40838,7 +44010,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x11a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40850,7 +44022,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x122);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40862,7 +44034,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40874,7 +44046,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x132);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40886,7 +44058,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x13a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40899,7 +44071,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x142);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40911,7 +44083,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x14a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40924,7 +44096,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x152);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40936,7 +44108,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x15a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40948,7 +44120,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x162);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40960,7 +44132,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x16a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40973,7 +44145,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x172);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40985,7 +44157,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x17a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -40997,7 +44169,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x182);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41009,7 +44181,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x18a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41021,7 +44193,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x192);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41034,7 +44206,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x19a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41046,7 +44218,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41058,7 +44230,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1aa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41070,7 +44242,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1b2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41082,7 +44254,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1ba);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41094,7 +44266,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1c2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41106,7 +44278,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1ca);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41118,7 +44290,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1d2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41131,7 +44303,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1da);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41144,7 +44316,44 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1e2);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.AccessRequestDelete != null) {
+                const f = this
+                    .AccessRequestDelete as events.AccessRequestDelete;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x212);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.SessionConnect != null) {
+                const f = this.SessionConnect as events.SessionConnect;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x21a);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.CertificateCreate != null) {
+                const f = this.CertificateCreate as events.CertificateCreate;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x222);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41152,9 +44361,13 @@ export namespace events {
         } // encode OneOf
     } // OneOf
 
+    // StreamStatus reflects stream status
     export class StreamStatus {
+        // UploadID represents upload ID
         public UploadID: string = "";
+        // LastEventIndex updates last event index
         public LastEventIndex: i64;
+        // LastUploadTime is the time of the last upload
         public LastUploadTime: google.protobuf.Timestamp =
             new google.protobuf.Timestamp();
 
@@ -41232,8 +44445,8 @@ export namespace events {
         }
 
         // Encodes StreamStatus to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -41242,7 +44455,7 @@ export namespace events {
         }
 
         // Encodes StreamStatus to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -41265,7 +44478,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x1a);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41273,11 +44486,16 @@ export namespace events {
         } // encode StreamStatus
     } // StreamStatus
 
+    // SessionUpload is a session upload
     export class SessionUpload {
+        // Metadata is a common event metadata
         public Metadata: events.Metadata = new events.Metadata();
+        // SessionMetadata is a common event session metadata
         public SessionMetadata: events.SessionMetadata =
             new events.SessionMetadata();
+        // ID is a unique event identifier
         public UID: string = "";
+        // URL is where the url the session event data upload is at
         public SessionURL: string = "";
 
         // Decodes SessionUpload from an ArrayBuffer
@@ -41379,8 +44597,8 @@ export namespace events {
         }
 
         // Encodes SessionUpload to the DataView
-        encodeDataView(): DataView {
-            const source = this.encode();
+        encode(): DataView {
+            const source = this.encodeU8Array();
             const view = new DataView(new ArrayBuffer(source.length));
             for (let i: i32 = 0; i < source.length; i++) {
                 view.setUint8(i, source.at(i));
@@ -41389,7 +44607,7 @@ export namespace events {
         }
 
         // Encodes SessionUpload to the Array<u8>
-        encode(
+        encodeU8Array(
             encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
         ): Array<u8> {
             const buf = encoder.buf;
@@ -41402,7 +44620,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0xa);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41414,7 +44632,7 @@ export namespace events {
                 if (messageSize > 0) {
                     encoder.uint32(0x12);
                     encoder.uint32(messageSize);
-                    f.encode(encoder);
+                    f.encodeU8Array(encoder);
                 }
             }
 
@@ -41432,6 +44650,787 @@ export namespace events {
             return buf;
         } // encode SessionUpload
     } // SessionUpload
+
+    /**
+     * Identity matches github.com/gravitational/teleport/lib/tlsca.Identity except
+     *  for RouteToApp and RouteToDatabase which are nullable and Traits which is
+     *  represented as a google.protobuf.Struct (still containing a map from string
+     *  to strings). Field names match other names already used in other events
+     *  rather than the field names in tlsca.Identity.
+     */
+    export class Identity {
+        // User is a username or name of the node connection
+        public User: string = "";
+        // Impersonator is a username of a user impersonating this user
+        public Impersonator: string = "";
+        // Roles is a list of groups (Teleport roles) encoded in the identity
+        public Roles: Array<string> = new Array<string>();
+        // Usage is a list of usage restrictions encoded in the identity
+        public Usage: Array<string> = new Array<string>();
+        // Logins is a list of Unix logins allowed.
+        public Logins: Array<string> = new Array<string>();
+        // KubernetesGroups is a list of Kubernetes groups allowed
+        public KubernetesGroups: Array<string> = new Array<string>();
+        // KubernetesUsers is a list of Kubernetes users allowed
+        public KubernetesUsers: Array<string> = new Array<string>();
+        // Expires specifies whenever the session will expire
+        public Expires: google.protobuf.Timestamp =
+            new google.protobuf.Timestamp();
+        /**
+         * RouteToCluster specifies the target cluster
+         *  if present in the session
+         */
+        public RouteToCluster: string = "";
+        /**
+         * KubernetesCluster specifies the target kubernetes cluster for TLS
+         *  identities. This can be empty on older Teleport clients.
+         */
+        public KubernetesCluster: string = "";
+        // Traits hold claim data used to populate a role at runtime.
+        public Traits: wrappers.LabelValues = new wrappers.LabelValues();
+        /**
+         * RouteToApp holds routing information for applications. Routing metadata
+         *  allows Teleport web proxy to route HTTP requests to the appropriate
+         *  cluster and Teleport application proxy within the cluster.
+         */
+        public RouteToApp: events.RouteToApp = new events.RouteToApp();
+        /**
+         * TeleportCluster is the name of the teleport cluster that this identity
+         *  originated from. For TLS certs this may not be the same as cert issuer,
+         *  in case of multi-hop requests that originate from a remote cluster.
+         */
+        public TeleportCluster: string = "";
+        // RouteToDatabase contains routing information for databases.
+        public RouteToDatabase: events.RouteToDatabase =
+            new events.RouteToDatabase();
+        // DatabaseNames is a list of allowed database names.
+        public DatabaseNames: Array<string> = new Array<string>();
+        // DatabaseUsers is a list of allowed database users.
+        public DatabaseUsers: Array<string> = new Array<string>();
+        /**
+         * MFADeviceUUID is the UUID of an MFA device when this Identity was
+         *  confirmed immediately after an MFA check.
+         */
+        public MFADeviceUUID: string = "";
+        // ClientIP is an observed IP of the client that this Identity represents.
+        public ClientIP: string = "";
+        // AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
+        public AWSRoleARNs: Array<string> = new Array<string>();
+        // AccessRequests is a list of UUIDs of active requests for this Identity.
+        public AccessRequests: Array<string> = new Array<string>();
+        /**
+         * DisallowReissue is a flag that, if set, instructs the auth server to
+         *  deny any attempts to reissue new certificates while authenticated with
+         *  this certificate.
+         */
+        public DisallowReissue: bool;
+
+        // Decodes Identity from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): Identity {
+            return Identity.decode(new DataView(buf));
+        }
+
+        // Decodes Identity from a DataView
+        static decode(view: DataView): Identity {
+            const decoder = new __proto.Decoder(view);
+            const obj = new Identity();
+
+            while (!decoder.eof()) {
+                const tag = decoder.tag();
+                const number = tag >>> 3;
+
+                switch (number) {
+                    case 1: {
+                        obj.User = decoder.string();
+                        break;
+                    }
+                    case 2: {
+                        obj.Impersonator = decoder.string();
+                        break;
+                    }
+                    case 3: {
+                        obj.Roles.push(decoder.string());
+                        break;
+                    }
+                    case 4: {
+                        obj.Usage.push(decoder.string());
+                        break;
+                    }
+                    case 5: {
+                        obj.Logins.push(decoder.string());
+                        break;
+                    }
+                    case 6: {
+                        obj.KubernetesGroups.push(decoder.string());
+                        break;
+                    }
+                    case 7: {
+                        obj.KubernetesUsers.push(decoder.string());
+                        break;
+                    }
+                    case 8: {
+                        const length = decoder.uint32();
+                        obj.Expires = google.protobuf.Timestamp.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 9: {
+                        obj.RouteToCluster = decoder.string();
+                        break;
+                    }
+                    case 10: {
+                        obj.KubernetesCluster = decoder.string();
+                        break;
+                    }
+                    case 11: {
+                        const length = decoder.uint32();
+                        obj.Traits = wrappers.LabelValues.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 12: {
+                        const length = decoder.uint32();
+                        obj.RouteToApp = events.RouteToApp.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 13: {
+                        obj.TeleportCluster = decoder.string();
+                        break;
+                    }
+                    case 14: {
+                        const length = decoder.uint32();
+                        obj.RouteToDatabase = events.RouteToDatabase.decode(
+                            new DataView(
+                                decoder.view.buffer,
+                                decoder.pos + decoder.view.byteOffset,
+                                length
+                            )
+                        );
+                        decoder.skip(length);
+
+                        break;
+                    }
+                    case 15: {
+                        obj.DatabaseNames.push(decoder.string());
+                        break;
+                    }
+                    case 16: {
+                        obj.DatabaseUsers.push(decoder.string());
+                        break;
+                    }
+                    case 17: {
+                        obj.MFADeviceUUID = decoder.string();
+                        break;
+                    }
+                    case 18: {
+                        obj.ClientIP = decoder.string();
+                        break;
+                    }
+                    case 19: {
+                        obj.AWSRoleARNs.push(decoder.string());
+                        break;
+                    }
+                    case 20: {
+                        obj.AccessRequests.push(decoder.string());
+                        break;
+                    }
+                    case 21: {
+                        obj.DisallowReissue = decoder.bool();
+                        break;
+                    }
+
+                    default:
+                        decoder.skipType(tag & 7);
+                        break;
+                }
+            }
+            return obj;
+        } // decode Identity
+
+        public size(): u32 {
+            let size: u32 = 0;
+
+            size +=
+                this.User.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.User.length) +
+                      this.User.length
+                    : 0;
+            size +=
+                this.Impersonator.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.Impersonator.length) +
+                      this.Impersonator.length
+                    : 0;
+
+            size += __size_string_repeated(this.Roles);
+
+            size += __size_string_repeated(this.Usage);
+
+            size += __size_string_repeated(this.Logins);
+
+            size += __size_string_repeated(this.KubernetesGroups);
+
+            size += __size_string_repeated(this.KubernetesUsers);
+
+            if (this.Expires != null) {
+                const f: google.protobuf.Timestamp = this
+                    .Expires as google.protobuf.Timestamp;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            size +=
+                this.RouteToCluster.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.RouteToCluster.length) +
+                      this.RouteToCluster.length
+                    : 0;
+            size +=
+                this.KubernetesCluster.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.KubernetesCluster.length) +
+                      this.KubernetesCluster.length
+                    : 0;
+
+            if (this.Traits != null) {
+                const f: wrappers.LabelValues = this
+                    .Traits as wrappers.LabelValues;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            if (this.RouteToApp != null) {
+                const f: events.RouteToApp = this
+                    .RouteToApp as events.RouteToApp;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            size +=
+                this.TeleportCluster.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.TeleportCluster.length) +
+                      this.TeleportCluster.length
+                    : 0;
+
+            if (this.RouteToDatabase != null) {
+                const f: events.RouteToDatabase = this
+                    .RouteToDatabase as events.RouteToDatabase;
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    size +=
+                        1 + __proto.Sizer.varint64(messageSize) + messageSize;
+                }
+            }
+
+            size += __size_string_repeated(this.DatabaseNames);
+
+            size += __size_string_repeated(this.DatabaseUsers);
+
+            size +=
+                this.MFADeviceUUID.length > 0
+                    ? 2 +
+                      __proto.Sizer.varint64(this.MFADeviceUUID.length) +
+                      this.MFADeviceUUID.length
+                    : 0;
+            size +=
+                this.ClientIP.length > 0
+                    ? 2 +
+                      __proto.Sizer.varint64(this.ClientIP.length) +
+                      this.ClientIP.length
+                    : 0;
+
+            size += __size_string_repeated(this.AWSRoleARNs);
+
+            size += __size_string_repeated(this.AccessRequests);
+
+            size += this.DisallowReissue == 0 ? 0 : 2 + 1;
+
+            return size;
+        }
+
+        // Encodes Identity to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
+            const view = new DataView(new ArrayBuffer(source.length));
+            for (let i: i32 = 0; i < source.length; i++) {
+                view.setUint8(i, source.at(i));
+            }
+            return view;
+        }
+
+        // Encodes Identity to the Array<u8>
+        encodeU8Array(
+            encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
+        ): Array<u8> {
+            const buf = encoder.buf;
+
+            if (this.User.length > 0) {
+                encoder.uint32(0xa);
+                encoder.uint32(this.User.length);
+                encoder.string(this.User);
+            }
+            if (this.Impersonator.length > 0) {
+                encoder.uint32(0x12);
+                encoder.uint32(this.Impersonator.length);
+                encoder.string(this.Impersonator);
+            }
+
+            if (this.Roles.length > 0) {
+                for (let n: i32 = 0; n < this.Roles.length; n++) {
+                    encoder.uint32(0x1a);
+                    encoder.uint32(this.Roles[n].length);
+                    encoder.string(this.Roles[n]);
+                }
+            }
+
+            if (this.Usage.length > 0) {
+                for (let n: i32 = 0; n < this.Usage.length; n++) {
+                    encoder.uint32(0x22);
+                    encoder.uint32(this.Usage[n].length);
+                    encoder.string(this.Usage[n]);
+                }
+            }
+
+            if (this.Logins.length > 0) {
+                for (let n: i32 = 0; n < this.Logins.length; n++) {
+                    encoder.uint32(0x2a);
+                    encoder.uint32(this.Logins[n].length);
+                    encoder.string(this.Logins[n]);
+                }
+            }
+
+            if (this.KubernetesGroups.length > 0) {
+                for (let n: i32 = 0; n < this.KubernetesGroups.length; n++) {
+                    encoder.uint32(0x32);
+                    encoder.uint32(this.KubernetesGroups[n].length);
+                    encoder.string(this.KubernetesGroups[n]);
+                }
+            }
+
+            if (this.KubernetesUsers.length > 0) {
+                for (let n: i32 = 0; n < this.KubernetesUsers.length; n++) {
+                    encoder.uint32(0x3a);
+                    encoder.uint32(this.KubernetesUsers[n].length);
+                    encoder.string(this.KubernetesUsers[n]);
+                }
+            }
+
+            if (this.Expires != null) {
+                const f = this.Expires as google.protobuf.Timestamp;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x42);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.RouteToCluster.length > 0) {
+                encoder.uint32(0x4a);
+                encoder.uint32(this.RouteToCluster.length);
+                encoder.string(this.RouteToCluster);
+            }
+            if (this.KubernetesCluster.length > 0) {
+                encoder.uint32(0x52);
+                encoder.uint32(this.KubernetesCluster.length);
+                encoder.string(this.KubernetesCluster);
+            }
+
+            if (this.Traits != null) {
+                const f = this.Traits as wrappers.LabelValues;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x5a);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.RouteToApp != null) {
+                const f = this.RouteToApp as events.RouteToApp;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x62);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.TeleportCluster.length > 0) {
+                encoder.uint32(0x6a);
+                encoder.uint32(this.TeleportCluster.length);
+                encoder.string(this.TeleportCluster);
+            }
+
+            if (this.RouteToDatabase != null) {
+                const f = this.RouteToDatabase as events.RouteToDatabase;
+
+                const messageSize = f.size();
+
+                if (messageSize > 0) {
+                    encoder.uint32(0x72);
+                    encoder.uint32(messageSize);
+                    f.encodeU8Array(encoder);
+                }
+            }
+
+            if (this.DatabaseNames.length > 0) {
+                for (let n: i32 = 0; n < this.DatabaseNames.length; n++) {
+                    encoder.uint32(0x7a);
+                    encoder.uint32(this.DatabaseNames[n].length);
+                    encoder.string(this.DatabaseNames[n]);
+                }
+            }
+
+            if (this.DatabaseUsers.length > 0) {
+                for (let n: i32 = 0; n < this.DatabaseUsers.length; n++) {
+                    encoder.uint32(0x82);
+                    encoder.uint32(this.DatabaseUsers[n].length);
+                    encoder.string(this.DatabaseUsers[n]);
+                }
+            }
+
+            if (this.MFADeviceUUID.length > 0) {
+                encoder.uint32(0x8a);
+                encoder.uint32(this.MFADeviceUUID.length);
+                encoder.string(this.MFADeviceUUID);
+            }
+            if (this.ClientIP.length > 0) {
+                encoder.uint32(0x92);
+                encoder.uint32(this.ClientIP.length);
+                encoder.string(this.ClientIP);
+            }
+
+            if (this.AWSRoleARNs.length > 0) {
+                for (let n: i32 = 0; n < this.AWSRoleARNs.length; n++) {
+                    encoder.uint32(0x9a);
+                    encoder.uint32(this.AWSRoleARNs[n].length);
+                    encoder.string(this.AWSRoleARNs[n]);
+                }
+            }
+
+            if (this.AccessRequests.length > 0) {
+                for (let n: i32 = 0; n < this.AccessRequests.length; n++) {
+                    encoder.uint32(0xa2);
+                    encoder.uint32(this.AccessRequests[n].length);
+                    encoder.string(this.AccessRequests[n]);
+                }
+            }
+
+            if (this.DisallowReissue != 0) {
+                encoder.uint32(0xa8);
+                encoder.bool(this.DisallowReissue);
+            }
+
+            return buf;
+        } // encode Identity
+    } // Identity
+
+    // RouteToApp contains parameters for application access certificate requests.
+    export class RouteToApp {
+        // Name is the application name certificate is being requested for.
+        public Name: string = "";
+        // SessionID is the ID of the application session.
+        public SessionID: string = "";
+        // PublicAddr is the application public address.
+        public PublicAddr: string = "";
+        // ClusterName is the cluster where the application resides.
+        public ClusterName: string = "";
+        // AWSRoleARN is the AWS role to assume when accessing AWS API.
+        public AWSRoleARN: string = "";
+
+        // Decodes RouteToApp from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): RouteToApp {
+            return RouteToApp.decode(new DataView(buf));
+        }
+
+        // Decodes RouteToApp from a DataView
+        static decode(view: DataView): RouteToApp {
+            const decoder = new __proto.Decoder(view);
+            const obj = new RouteToApp();
+
+            while (!decoder.eof()) {
+                const tag = decoder.tag();
+                const number = tag >>> 3;
+
+                switch (number) {
+                    case 1: {
+                        obj.Name = decoder.string();
+                        break;
+                    }
+                    case 2: {
+                        obj.SessionID = decoder.string();
+                        break;
+                    }
+                    case 3: {
+                        obj.PublicAddr = decoder.string();
+                        break;
+                    }
+                    case 4: {
+                        obj.ClusterName = decoder.string();
+                        break;
+                    }
+                    case 5: {
+                        obj.AWSRoleARN = decoder.string();
+                        break;
+                    }
+
+                    default:
+                        decoder.skipType(tag & 7);
+                        break;
+                }
+            }
+            return obj;
+        } // decode RouteToApp
+
+        public size(): u32 {
+            let size: u32 = 0;
+
+            size +=
+                this.Name.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.Name.length) +
+                      this.Name.length
+                    : 0;
+            size +=
+                this.SessionID.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.SessionID.length) +
+                      this.SessionID.length
+                    : 0;
+            size +=
+                this.PublicAddr.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.PublicAddr.length) +
+                      this.PublicAddr.length
+                    : 0;
+            size +=
+                this.ClusterName.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.ClusterName.length) +
+                      this.ClusterName.length
+                    : 0;
+            size +=
+                this.AWSRoleARN.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.AWSRoleARN.length) +
+                      this.AWSRoleARN.length
+                    : 0;
+
+            return size;
+        }
+
+        // Encodes RouteToApp to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
+            const view = new DataView(new ArrayBuffer(source.length));
+            for (let i: i32 = 0; i < source.length; i++) {
+                view.setUint8(i, source.at(i));
+            }
+            return view;
+        }
+
+        // Encodes RouteToApp to the Array<u8>
+        encodeU8Array(
+            encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
+        ): Array<u8> {
+            const buf = encoder.buf;
+
+            if (this.Name.length > 0) {
+                encoder.uint32(0xa);
+                encoder.uint32(this.Name.length);
+                encoder.string(this.Name);
+            }
+            if (this.SessionID.length > 0) {
+                encoder.uint32(0x12);
+                encoder.uint32(this.SessionID.length);
+                encoder.string(this.SessionID);
+            }
+            if (this.PublicAddr.length > 0) {
+                encoder.uint32(0x1a);
+                encoder.uint32(this.PublicAddr.length);
+                encoder.string(this.PublicAddr);
+            }
+            if (this.ClusterName.length > 0) {
+                encoder.uint32(0x22);
+                encoder.uint32(this.ClusterName.length);
+                encoder.string(this.ClusterName);
+            }
+            if (this.AWSRoleARN.length > 0) {
+                encoder.uint32(0x2a);
+                encoder.uint32(this.AWSRoleARN.length);
+                encoder.string(this.AWSRoleARN);
+            }
+
+            return buf;
+        } // encode RouteToApp
+    } // RouteToApp
+
+    // RouteToDatabase combines parameters for database service routing information.
+    export class RouteToDatabase {
+        // ServiceName is the Teleport database proxy service name the cert is for.
+        public ServiceName: string = "";
+        // Protocol is the type of the database the cert is for.
+        public Protocol: string = "";
+        // Username is an optional database username to embed.
+        public Username: string = "";
+        // Database is an optional database name to embed.
+        public Database: string = "";
+
+        // Decodes RouteToDatabase from an ArrayBuffer
+        static decodeArrayBuffer(buf: ArrayBuffer): RouteToDatabase {
+            return RouteToDatabase.decode(new DataView(buf));
+        }
+
+        // Decodes RouteToDatabase from a DataView
+        static decode(view: DataView): RouteToDatabase {
+            const decoder = new __proto.Decoder(view);
+            const obj = new RouteToDatabase();
+
+            while (!decoder.eof()) {
+                const tag = decoder.tag();
+                const number = tag >>> 3;
+
+                switch (number) {
+                    case 1: {
+                        obj.ServiceName = decoder.string();
+                        break;
+                    }
+                    case 2: {
+                        obj.Protocol = decoder.string();
+                        break;
+                    }
+                    case 3: {
+                        obj.Username = decoder.string();
+                        break;
+                    }
+                    case 4: {
+                        obj.Database = decoder.string();
+                        break;
+                    }
+
+                    default:
+                        decoder.skipType(tag & 7);
+                        break;
+                }
+            }
+            return obj;
+        } // decode RouteToDatabase
+
+        public size(): u32 {
+            let size: u32 = 0;
+
+            size +=
+                this.ServiceName.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.ServiceName.length) +
+                      this.ServiceName.length
+                    : 0;
+            size +=
+                this.Protocol.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.Protocol.length) +
+                      this.Protocol.length
+                    : 0;
+            size +=
+                this.Username.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.Username.length) +
+                      this.Username.length
+                    : 0;
+            size +=
+                this.Database.length > 0
+                    ? 1 +
+                      __proto.Sizer.varint64(this.Database.length) +
+                      this.Database.length
+                    : 0;
+
+            return size;
+        }
+
+        // Encodes RouteToDatabase to the DataView
+        encode(): DataView {
+            const source = this.encodeU8Array();
+            const view = new DataView(new ArrayBuffer(source.length));
+            for (let i: i32 = 0; i < source.length; i++) {
+                view.setUint8(i, source.at(i));
+            }
+            return view;
+        }
+
+        // Encodes RouteToDatabase to the Array<u8>
+        encodeU8Array(
+            encoder: __proto.Encoder = new __proto.Encoder(new Array<u8>())
+        ): Array<u8> {
+            const buf = encoder.buf;
+
+            if (this.ServiceName.length > 0) {
+                encoder.uint32(0xa);
+                encoder.uint32(this.ServiceName.length);
+                encoder.string(this.ServiceName);
+            }
+            if (this.Protocol.length > 0) {
+                encoder.uint32(0x12);
+                encoder.uint32(this.Protocol.length);
+                encoder.string(this.Protocol);
+            }
+            if (this.Username.length > 0) {
+                encoder.uint32(0x1a);
+                encoder.uint32(this.Username.length);
+                encoder.string(this.Username);
+            }
+            if (this.Database.length > 0) {
+                encoder.uint32(0x22);
+                encoder.uint32(this.Database.length);
+                encoder.string(this.Database);
+            }
+
+            return buf;
+        } // encode RouteToDatabase
+    } // RouteToDatabase
 } // events
 
 // __decodeMap_string_google_protobuf_Value
@@ -41868,3 +45867,6 @@ function __sizeMapEntry_string_types_PluginDataEntry(
 
     return keySize + 1 + __proto.Sizer.varint64(valueSize) + valueSize;
 }
+
+// Type aliases
+export type Event = events.OneOf;
