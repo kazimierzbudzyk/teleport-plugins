@@ -89,49 +89,25 @@ The pipeline is the following:
 
 # Minimal event plugin and test
 
-The following code receives an upcoming event and returns it unchanged. Put it to `assembly/index.ts`.
+The following code receives an upcoming event and returns it unchanged. Put it to `assembly/event_handler.ts`.
 
 ```ts
 // event protobuf class
-import { events } from '../vendor/teleport';
-
-// These methods are used by the host for sending message to the plugin side
-export {
-    __protobuf_alloc,
-    __protobuf_getAddr,
-    __protobuf_getLength,
-} from '../vendor/teleport';
-
-// Type alias for an event
-type Event = events.OneOf;
+import { Event } from '../vendor/teleport';
 
 // plugin entry point
-export function handleEvent(eventData: DataView): DataView | null {
-    // decode the event from it's binary form
-    let event:Event | null = events.OneOf.decode(eventData);
-    if (event == null) {
-        throw new Error("Failed to decode Event from protobuf!")
-    }
-
-    // encode an event back and return it
-    return event.encodeDataView();
+export function handleEvent(event: Event): Event | null {
+    trace("Event of type " + event.__oneOf_Event + " received") // Print the event type
+    return event
 }
 ```
 
-Now, put the following content into `assembly/index.test.ts`:
+Now, put the following content into `assembly/event_handler.test.ts`:
 
 ```ts
 import { getFixture } from '../vendor/test';
 import { events } from '../vendor/teleport';
-import { handleEvent } from '.';
-
-export { 
-    __protobuf_alloc,
-    __protobuf_getAddr,
-    __protobuf_getLength,
-} from '../vendor/teleport';
-
-export { handleEvent } from './index';
+import { handleEvent } from './index';
 
 // Main test function
 export function test(): void {
@@ -263,29 +239,14 @@ const result = handleEvent(createSupervisorUser)
 
 Let's say we want to skip logins from a user named `secret-santa`.
 
-Put the following code into `assembly/index.ts`:
+Put the following code into `assembly/event_handler.ts`:
 
 ```ts
 // event protobuf class
-import { events } from '../vendor/teleport';
-
-// This methods are used by the host for message exchange
-export {
-    __protobuf_alloc,
-    __protobuf_getAddr,
-    __protobuf_getLength,
-} from '../vendor/teleport';
-
-// Type alias for an event
-type Event = events.OneOf;
+import { Event, events } from '../vendor/teleport';
 
 // plugin entry point
-export function handleEvent(eventData: DataView): DataView | null {
-    let event:Event | null = events.OneOf.decode(eventData);
-    if (event == null) {
-        throw new Error("Failed to decode Event from protobuf!")
-    }
-
+export function handleEvent(event: Event): Event | null {
     // If this is the login event
     if (event.UserLogin != null) {
         const userLogin = event.UserLogin as events.UserLogin
@@ -294,23 +255,15 @@ export function handleEvent(eventData: DataView): DataView | null {
         }
     }
 
-    return event.encodeDataView();
+    return event;
 }
 ```
 
-Fixture #2 in the test setup represents the login event of `secret-santa` user. Given that, put the following in `assembly/index.test.ts`:
+Fixture #2 in the test setup represents the login event of `secret-santa` user. Given that, put the following in `assembly/event_handler.test.ts`:
 
 ```ts
 import { getFixture } from '../vendor/test';
 import { handleEvent } from '.';
-
-export { 
-    __protobuf_alloc,
-    __protobuf_getAddr,
-    __protobuf_getLength,
-} from '../vendor/teleport';
-
-export { handleEvent } from './index';
 
 // Main test function
 export function test(): void {
@@ -329,29 +282,14 @@ And run: `yarn test`.
 
 Let's say we want to add a label `'seen-by-us': 'yes'` to all access requests.
 
-Put the following contents in the `assembly/index.ts`:
+Put the following contents in the `assembly/event_handler.ts`:
 
 ```ts
 // event protobuf class
-import { google, events } from '../vendor/teleport';
-
-// This methods are used by the host for message exchange
-export {
-    __protobuf_alloc,
-    __protobuf_getAddr,
-    __protobuf_getLength,
-} from '../vendor/teleport';
-
-// Type alias for an event
-type Event = events.OneOf;
+import { Event, google, events } from '../vendor/teleport';
 
 // plugin entry point
-export function handleEvent(eventData: DataView): DataView | null {
-    let event:Event | null = events.OneOf.decode(eventData);
-    if (event == null) {
-        throw new Error("Failed to decode Event from protobuf!")
-    }
-
+export function handleEvent(event: Event): Event | null {
     // If an event is AccessRequestCreate
     if (event.AccessRequestCreate != null) {
         const request = event.AccessRequestCreate as events.AccessRequestCreate;
@@ -363,24 +301,16 @@ export function handleEvent(eventData: DataView): DataView | null {
         request.Annotations.fields.set("seen-by-us", value)
     }
 
-    return event.encodeDataView();
+    return event;
 }
 ```
 
-Fixture #3 in the test setup represents AccessRequest create event. Given that, put the following contents into `assembly/index.test.ts`:
+Fixture #3 in the test setup represents AccessRequest create event. Given that, put the following contents into `assembly/event_handler.test.ts`:
 
 ```ts
 import { events } from '../vendor/teleport';
 import { getFixture } from '../vendor/test';
 import { handleEvent } from '.';
-
-export { 
-    __protobuf_alloc,
-    __protobuf_getAddr,
-    __protobuf_getLength,
-} from '../vendor/teleport';
-
-export { handleEvent } from './index';
 
 // Main test function
 export function test(): void {
@@ -391,7 +321,7 @@ export function test(): void {
     assert(result != null, "Event has not been processed")
 
     const changedEvent = events.OneOf.decode(result as DataView);
-    assert(changedEvent.AccessRequestCreate != null, "AccessRequestCreate is present")
+    assert(changedEvent.AccessRequestCreate != null, "AccessRequestCreate is missing")
 
     const changedAccessRequest = changedEvent.AccessRequestCreate as events.AccessRequestCreate;
     assert(
@@ -409,37 +339,21 @@ Run: `yarn test`.
 
 Let's say we want to lock user if he fails to login 3 times within latest 5 minutes.
 
-Put the following content into `assembly/index.ts`:
+Put the following content into `assembly/event_handler.ts`:
 
 ```ts
-import { google, events, types } from '../vendor/teleport';
+import { Event, events } from '../vendor/teleport';
 import * as store from '../vendor/store';
-import { upsertLock } from '../vendor/api';
-
-// This methods are used by the host for message exchange
-export {
-    __protobuf_alloc,
-    __protobuf_getAddr,
-    __protobuf_getLength,
-} from '../vendor/teleport';
-
-// Type alias for an event
-type Event = events.OneOf;
+import { createLock } from '../vendor/api';
 
 const maxFailedLoginAttempts = 3;     // 3 tries
 const failedAttemptsTimeout = 60 * 5; // within 5 minutes
 
-// plugin entry point
-export function handleEvent(eventData: DataView): DataView | null {
-    let event:Event | null = events.OneOf.decode(eventData);
-    if (event == null) {
-        throw new Error("Failed to decode Event from protobuf!")
-    }
-
+export function handleEvent(event: Event): Event | null {
     if (event.UserLogin != null) {
         const login = event.UserLogin as events.UserLogin;
 
-        // If a login was not successful
+        // If a login was not successful        
         if (login.Status.Success == false) {
             // Record login attempt and get current attempts within the time frame for a user
             const count = store.takeToken(login.User.Login, failedAttemptsTimeout) // 5 minutes
@@ -448,45 +362,22 @@ export function handleEvent(eventData: DataView): DataView | null {
             if (count > maxFailedLoginAttempts) {
                 trace("Suspicious login activity detected, attempts made:", 1, count)
 
-                // Create lock object
-                const lock = new types.LockV2()
-                lock.Metadata = new types.Metadata()
-                lock.Metadata.Name = "wasm-plugin-lock-" + login.User.Login;
-
-                lock.Spec = new types.LockSpecV2()
-                lock.Spec.Message = "Suspicious login"
-                lock.Spec.Target = new types.LockTarget()
-                lock.Spec.Target.Login = login.User.Login;
-                lock.Spec.Target.User = login.User.User;
-                
-                lock.Spec.Expires = new google.protobuf.Timestamp()
-                lock.Spec.Expires.seconds = Date.now() + 3600;
-
-                // Call Teleport API
-                const encoded = lock.encodeDataView()
-                upsertLock(changetype<usize>(encoded))
+                // Create lock
+                createLock(login.User, 3600)
             }
         }
     }
 
-    return event.encodeDataView();
+    return event;
 }
 ```
 
-Fixture #4 in the test setup represents failed login attempt. Given that, put the following contents into `assembly/index.test.ts`:
+Fixture #4 in the test setup represents failed login attempt. Given that, put the following contents into `assembly/event_handler.test.ts`:
 
 ```ts
 import { types } from '../vendor/teleport';
 import { getFixture, getLatestAPIRequest } from '../vendor/test';
 import { handleEvent } from '.';
-
-export { 
-    __protobuf_alloc,
-    __protobuf_getAddr,
-    __protobuf_getLength,
-} from '../vendor/teleport';
-
-export { handleEvent } from './index';
 
 // Main test function
 export function test(): void {
@@ -514,11 +405,56 @@ And run `yarn test`.
 
 Please note `getLatestAPIRequest()` method call. Tests call mock API. Mock API methods are always successful. Latest API request is saved in memory and returned by this method. In our example, this method will return binary representation of `types.LockV2` object constructed in `index.ts`.
 
+# AssemblyScript `env` functions
+
+`teleport-plugin-framework` provides [special imports](https://www.assemblyscript.org/concepts.html#special-imports) implementation. 
+
+The only function you would use directly is `trace`:
+
+```ts
+trace("foo")                // Prints "foo"
+trace("bar", 1, 100)        // Prints "foo 100"
+trace("foo", 2, 100, 200)   // Prints "foo 100 200"
+```
+
+It prints data to the plugin log.
+
 # Connecting the plugin to `event-handler`
 
 ## Prepare the plugin
 
+The following code receives an upcoming event and returns it unchanged. Put it to `assembly/event_handler.ts`.
 
+```ts
+// event protobuf class
+import { Event } from '../vendor/teleport';
+
+// plugin entry point
+export function handleEvent(event: Event): Event | null {
+    trace("Event of type" + event.__oneOf_Event + " received, size:", 1, event.size()) // Print event type and size
+    return event
+}
+```
+
+Put the following content into `assembly/event_handler.test.ts`:
+
+```ts
+import { getFixture } from '../vendor/test';
+import { handleEvent } from './index';
+
+// Main test function
+export function test(): void {
+    trace("teleport-plugin-framework tests")
+
+    // Send test event to the plugin
+    const result = handleEvent(getFixture(1))
+    assert(result != null, "Event is not handled")
+
+    trace("Success!")
+}
+```
+
+This snippet would print received event type to logs.
 
 ## Installation
 

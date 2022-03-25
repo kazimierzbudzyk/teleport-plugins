@@ -1,9 +1,9 @@
 // protobuf classes for host message exchange
-import { events, google, types } from '../vendor/teleport';
+import { events, google } from '../vendor/teleport';
 // memory data store for event count calculations
 import * as store from '../vendor/store';
 // API methods
-import { upsertLock } from '../vendor/api';
+import { createLock } from '../vendor/api';
 
 const maxFailedLoginAttempts = 3;     // 3 tries
 const failedAttemptsTimeout = 60 * 5; // within 5 minutes
@@ -67,25 +67,19 @@ function addRequiredLabels(event: Event): Event | null {
 function createLockBasedOnEvent(event: Event): Event | null {
     if (event.UserLogin != null) {
         const login = event.UserLogin as events.UserLogin;
-        const count = store.takeToken(login.User.Login, failedAttemptsTimeout) // 5 minutes
-        if (count > maxFailedLoginAttempts) {
-            trace("Suspicious login activity detected, attempts made:", 1, count)
 
-            const lock = new types.LockV2()
-            lock.Metadata = new types.Metadata()
-            lock.Metadata.Name = "wasm-plugin-lock-" + login.User.Login;
+        // If a login was not successful        
+        if (login.Status.Success == false) {
+            // Record login attempt and get current attempts within the time frame for a user
+            const count = store.takeToken(login.User.Login, failedAttemptsTimeout) // 5 minutes
 
-            lock.Spec = new types.LockSpecV2()
-            lock.Spec.Message = "Suspicious login"
-            lock.Spec.Target = new types.LockTarget()
-            lock.Spec.Target.Login = login.User.Login;
-            lock.Spec.Target.User = login.User.User;
-            
-            lock.Spec.Expires = new google.protobuf.Timestamp()
-            lock.Spec.Expires.seconds = Date.now() + 3600;
+            // If limit is exceeded
+            if (count > maxFailedLoginAttempts) {
+                trace("Suspicious login activity detected, attempts made:", 1, count)
 
-            const encoded = lock.encode()
-            upsertLock(changetype<usize>(encoded))
+                // Create lock
+                createLock(login.User, 3600)
+            }
         }
     }
 

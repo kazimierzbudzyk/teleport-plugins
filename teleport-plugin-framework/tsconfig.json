@@ -1,4 +1,5 @@
 {
+  "extends": "assemblyscript/std/assembly.json",
   "compilerOptions": {
     "target": "es6",
     "module": "commonjs",
@@ -19,7 +20,7 @@
     "strictNullChecks": false
   },
   "include": [
-    "assembly/**/*", "vendor/**/*", "dev/**/*", "transform/**/*"
+    "assembly/**/*", "vendor/**/*", "dev/**/*"
   ]
 }
   
