@@ -126,3 +126,40 @@ func (s *TerraformSuite) TestImportSAMLConnector() {
 		},
 	})
 }
+
+func (s *TerraformSuite) TestSAMLConnectorOnlyEntityDescriptorURL() {
+	id := "test_only_entity_descriptor_url"
+
+	samlConnector := &types.SAMLConnectorV2{
+		Metadata: types.Metadata{
+			Name: id,
+		},
+		Spec: types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "https://example.com/v1/webapi/saml/acs",
+			EntityDescriptorURL:      "https://dev-84961217.okta.com/app/exk4d7tmnz9DEaEw85d7/sso/saml/metadata",
+		},
+	}
+
+	err := samlConnector.CheckAndSetDefaults()
+	require.NoError(s.T(), err)
+
+	err = s.client.UpsertSAMLConnector(s.Context(), samlConnector)
+	require.NoError(s.T(), err)
+}
+
+func (s *TerraformSuite) TestSAMLConnectorWithoutAnyEntityDescriptorFails() {
+	id := "test_without_any_entity_descriptor_fails"
+
+	samlConnector := &types.SAMLConnectorV2{
+		Metadata: types.Metadata{
+			Name: id,
+		},
+		Spec: types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "https://example.com/v1/webapi/saml/acs",
+		},
+	}
+
+	err := samlConnector.CheckAndSetDefaults()
+	require.Error(s.T(), err)
+	require.Contains(s.T(), err.Error(), "provide entity_descriptor or entity_descriptor_url")
+}
