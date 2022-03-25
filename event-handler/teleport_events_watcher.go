@@ -104,7 +104,7 @@ func (t *TeleportEventsWatcher) Close() {
 
 // flipPage flips the current page
 func (t *TeleportEventsWatcher) flipPage() bool {
-	if t.nextCursor == "" {
+	if (t.nextCursor == "") || (t.nextCursor == t.cursor) {
 		return false
 	}
 

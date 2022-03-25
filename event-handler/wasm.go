@@ -121,10 +121,12 @@ func (e *HandleEvent) HandleTeleportEvent(ctx context.Context, pool *wasm.Execut
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	eventAfterWasm, err := e.HandleEvent(ctx, ec, evt.Event)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	err = pool.Put(ctx, ec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -138,6 +140,7 @@ func (e *HandleEvent) HandleTeleportEvent(ctx context.Context, pool *wasm.Execut
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return NewSanitizedTeleportEvent(c), nil
 }
 
