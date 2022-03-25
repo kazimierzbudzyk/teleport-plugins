@@ -17,6 +17,9 @@ limitations under the License.
 package test
 
 import (
+	"net/http"
+	"net/http/httptest"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -130,13 +133,19 @@ func (s *TerraformSuite) TestImportSAMLConnector() {
 func (s *TerraformSuite) TestSAMLConnectorOnlyEntityDescriptorURL() {
 	id := "test_only_entity_descriptor_url"
 
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		respFixture := s.getFixture("saml_entity_descriptor.xml")
+		w.Write([]byte(respFixture))
+	}))
+	defer mockServer.Close()
+
 	samlConnector := &types.SAMLConnectorV2{
 		Metadata: types.Metadata{
 			Name: id,
 		},
 		Spec: types.SAMLConnectorSpecV2{
 			AssertionConsumerService: "https://example.com/v1/webapi/saml/acs",
-			EntityDescriptorURL:      "https://dev-84961217.okta.com/app/exk4d7tmnz9DEaEw85d7/sso/saml/metadata",
+			EntityDescriptorURL:      mockServer.URL + "/app/exk4d7tmnz9DEaEw85d7/sso/saml/metadata",
 		},
 	}
 
