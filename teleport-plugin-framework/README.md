@@ -497,4 +497,12 @@ After that, add the following lines to `teleport-event-handler.toml`:
 plugin = "~/teleport-plugin/build/production.wasm"
 ```
 
-Start `event-handler`. Events would be processed via the plugin.
+Run: `yarn asbuild`.
+
+Start `event-handler` with `-d` (debug output) flag. Wait an events and check logs:
+
+```
+INFO   Event of type RoleCreate received  wasm/assembly_script_env.go:144
+```
+
+You can recreate `teleport-event-handler` user and role using `tctl create -f teleport-event-handler-role.yaml`.

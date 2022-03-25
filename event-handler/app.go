@@ -252,6 +252,7 @@ func (a *App) initWasm(ctx context.Context) error {
 	pb := wasm.NewProtobufInterop()
 	s := wasm.NewStore(wasm.NewBadgerPersistentStore(a.badgerDB), wasm.DecodeAssemblyScriptString)
 	a.wasmHandleEvent = NewHandleEvent(a.Config.WASMHandleEvent, pb)
+	api := wasm.NewTeleportAPI(log, a.EventWatcher.client, pb)
 
 	opts := wasm.ExecutionContextPoolOptions{
 		Bytes:       b,
@@ -259,7 +260,7 @@ func (a *App) initWasm(ctx context.Context) error {
 		Concurrency: a.Config.WASMConcurrency,
 	}
 
-	a.wasmPool, err = wasm.NewExecutionContextPool(opts, e, pb, a.wasmHandleEvent, s)
+	a.wasmPool, err = wasm.NewExecutionContextPool(opts, e, pb, a.wasmHandleEvent, s, api)
 
 	if err != nil {
 		return trace.Wrap(err)
