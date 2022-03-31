@@ -19,6 +19,7 @@ package tfschema
 import (
 	"context"
 	fmt "fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -162,4 +163,56 @@ OUTER:
 		resp.Diagnostics.AddError("Map keys validation error", fmt.Sprintf("Key %v must be present in the map %v", k, req.AttributePath.String()))
 	}
 
+}
+
+// OneOfValidator validates that exists one of the following keys
+type OneOfValidator struct {
+	Keys []string
+}
+
+// UseOneOfValidator creates OneOfValidator
+func UseOneOfValidator(keys ...string) tfsdk.AttributeValidator {
+	return OneOfValidator{
+		Keys: keys,
+	}
+}
+
+// Description returns validator description
+func (v OneOfValidator) Description(_ context.Context) string {
+	return fmt.Sprintf("OneOf '%s' keys must be present", strings.Join(v.Keys, ", "))
+}
+
+// MarkdownDescription returns validator markdown description
+func (v OneOfValidator) MarkdownDescription(_ context.Context) string {
+	return fmt.Sprintf("OneOf '%s' keys must be present", strings.Join(v.Keys, ", "))
+}
+
+// Validate performs the validation.
+func (v OneOfValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
+	if req.AttributeConfig == nil {
+		return
+	}
+
+	value, ok := req.AttributeConfig.(types.Object)
+	if !ok {
+		resp.Diagnostics.AddError(
+			"Object validation error",
+			fmt.Sprintf("Attribute %v can not be converted to Object", req.AttributePath.String()),
+		)
+		return
+	}
+
+	if value.Null || value.Unknown {
+		return
+	}
+
+	for _, key := range v.Keys {
+		if _, found := value.Attrs[key]; found {
+			return
+		}
+	}
+	resp.Diagnostics.AddError(
+		"OneOf keys validation error",
+		fmt.Sprintf("OneOf '%s' keys must be present", strings.Join(v.Keys, ", ")),
+	)
 }
