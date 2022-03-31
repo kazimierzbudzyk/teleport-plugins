@@ -130,7 +130,23 @@ func (s *TerraformSuite) TestImportSAMLConnector() {
 	})
 }
 
-func (s *TerraformSuite) TestSAMLConnectorOnlyEntityDescriptorURL() {
+func (s *TerraformSuite) TestSAMLConnectorValidateSingleEntityDescriptorPropTF() {
+	name := "teleport_saml_connector_validate_single_entity_descriptor_prop_tf.test"
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("saml_connector_0_create_only_entity_descriptor_url.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "saml"),
+					resource.TestCheckResourceAttr(name, "spec.entity_descriptor_url", "https://dev-84961217.okta.com/app/exk4d7tmnz9DEaEw85d7/sso/saml/metadata"),
+				),
+			},
+		},
+	})
+}
+
+func (s *TerraformSuite) TestSAMLConnectorTerraformOnlyEntityDescriptorURL() {
 	id := "test_only_entity_descriptor_url"
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
